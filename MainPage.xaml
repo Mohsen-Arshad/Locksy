@@ -1,0 +1,536 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Locksy.MainPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:models="clr-namespace:Locksy.Models"
+    Title="Locksy"
+    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightBackground}, Dark={StaticResource LocksyDarkBackground}}">
+
+    <!-- Outer host: spans the full page so the modal can truly block all background input. -->
+    <Grid>
+      <Grid x:Name="PageContent"
+            Padding="20,18,20,14"
+            RowDefinitions="Auto,Auto,*,Auto,Auto,Auto"
+            RowSpacing="14">
+
+        <!-- Brand header and manual/system theme selector -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <Image Source="locksy_app_logo.png"
+                   WidthRequest="54"
+                   HeightRequest="54"
+                   VerticalOptions="Center" />
+            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                <Label Text="Locksy"
+                       FontSize="29"
+                       FontAttributes="Bold"
+                       TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}" />
+                <Label Text="Keep what matters in sight."
+                       FontSize="12"
+                       TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}" />
+            </VerticalStackLayout>
+            <Border x:Name="ThemeToggleBorder"
+                    Grid.Column="2"
+                    WidthRequest="98"
+                    HeightRequest="32"
+                    Padding="3"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 24"
+                    VerticalOptions="Center"
+                    SemanticProperties.Description="Switch between dark and light theme">
+                <Border.Shadow>
+                    <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="2,3" Radius="8" Opacity="0.34" />
+                </Border.Shadow>
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="ThemeToggle_Tapped" />
+                </Border.GestureRecognizers>
+                <Grid ColumnDefinitions="23,*,23" ColumnSpacing="1">
+                    <Border x:Name="MoonIconContainer"
+                            Grid.Column="0"
+                            WidthRequest="23"
+                            HeightRequest="23"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                            Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 12"
+                            VerticalOptions="Center"
+                            HorizontalOptions="Center">
+                        <Image x:Name="ThemeMoonIcon"
+                               Source="theme_moon.svg"
+                               WidthRequest="15"
+                               HeightRequest="15"
+                               Aspect="AspectFit"
+                               Margin="0"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
+                    <Label x:Name="ThemeToggleLabel"
+                           Grid.Column="1"
+                           Text="DARK"
+                           FontSize="9"
+                           FontAttributes="Bold"
+                           CharacterSpacing="0.6"
+                           TextColor="#FFF3CF"
+                           HorizontalTextAlignment="Center"
+                           VerticalTextAlignment="Center" />
+                    <Border x:Name="SunIconContainer"
+                            Grid.Column="2"
+                            WidthRequest="23"
+                            HeightRequest="23"
+                            IsVisible="False"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                            Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 12"
+                            VerticalOptions="Center"
+                            HorizontalOptions="Center">
+                        <Image x:Name="ThemeSunIcon"
+                               Source="theme_sun.svg"
+                               WidthRequest="15"
+                               HeightRequest="15"
+                               Aspect="AspectFit"
+                               Margin="0"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Add task -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <Border Grid.Column="0"
+                    HeightRequest="54"
+                    Padding="12,0"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightInset}, Dark={StaticResource LocksyDarkInset}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorder}, Dark={StaticResource LocksyDarkBorderStrong}}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 16"
+                    VerticalOptions="Center">
+                <Border.Shadow>
+                    <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="1,2" Radius="6" Opacity="0.28" />
+                </Border.Shadow>
+                <Entry x:Name="NewTaskEntry"
+                       Text="{Binding NewTaskText}"
+                       Placeholder="Add a task..."
+                       ReturnType="Done"
+                       Completed="AddTaskEntry_Completed"
+                       Unfocused="NewTaskEntry_Unfocused"
+                       ClearButtonVisibility="WhileEditing"
+                       BackgroundColor="Transparent"
+                       TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
+                       PlaceholderColor="{AppThemeBinding Light=#8C8798, Dark=#9690A8}"
+                       HeightRequest="52"
+                       HandlerChanged="RoundedControl_HandlerChanged" />
+            </Border>
+            <Button Grid.Column="1"
+                    Text="＋ Add"
+                    Clicked="AddTaskButton_Clicked"
+                    BackgroundColor="#8875E8"
+                    TextColor="White"
+                    CornerRadius="16"
+                    HeightRequest="52"
+                    Padding="16,0"
+                    FontAttributes="Bold">
+                <Button.Shadow>
+                    <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="2,3" Radius="8" Opacity="0.42" />
+                </Button.Shadow>
+            </Button>
+        </Grid>
+
+        <!-- Drag by the dotted handle. Tap the task text to edit; long-press it for options. -->
+        <CollectionView Grid.Row="2"
+                        x:Name="TasksCollection"
+                        ItemsSource="{Binding Tasks}"
+                        SelectionMode="None"
+                        VerticalOptions="Fill"
+                        ItemsUpdatingScrollMode="KeepScrollOffset">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout Padding="16,34" Spacing="10" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Border WidthRequest="84" HeightRequest="84" Padding="0" HorizontalOptions="Center"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                            Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
+                            StrokeThickness="1" StrokeShape="RoundRectangle 26">
+                        <Border.Shadow>
+                            <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="3,4" Radius="10" Opacity="0.38" />
+                        </Border.Shadow>
+                        <Label Text="✓" FontSize="46" FontAttributes="Bold" HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center" TextColor="#8A78E8" />
+                    </Border>
+                    <Label Text="Your list is clear"
+                           FontSize="20"
+                           FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
+                           HorizontalTextAlignment="Center" />
+                    <Label Text="Add your first task. It will be saved on this device."
+                           FontSize="13"
+                           TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}"
+                           HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:TodoItem">
+                    <Grid Margin="0,0,0,8">
+                        <!-- Task shadow tuning: RoundRectangle controls roundness, TranslationY controls depth,
+                             Opacity controls strength, and LocksyLight/DarkShadowEdge in App.xaml controls color.
+                             Remove this Border entirely to disable the task shadow. -->
+                        <Border InputTransparent="True"
+                                TranslationY="2"
+                                Opacity="0.50"
+                                BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightShadowEdge}, Dark={StaticResource LocksyDarkShadowEdge}}"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 16" />
+                        <Border Padding="8,6"
+                                BackgroundColor="{Binding RowColor}"
+                                Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorder}, Dark={StaticResource LocksyDarkBorder}}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 16"
+                                HandlerChanged="TaskRow_HandlerChanged">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="7">
+                            <CheckBox Grid.Column="0"
+                                      IsChecked="{Binding IsCompleted}"
+                                      Color="#8875E8"
+                                      VerticalOptions="Center" />
+                            <Label Grid.Column="1"
+                                   Text="⠿"
+                                   FontSize="23"
+                                   WidthRequest="36"
+                                   HeightRequest="44"
+                                   HorizontalTextAlignment="Center"
+                                   VerticalTextAlignment="Center"
+                                   TextColor="{AppThemeBinding Light=#918BA1, Dark=#A7A0BA}"
+                                   HandlerChanged="TaskGrip_HandlerChanged"
+                                   AutomationProperties.Name="Drag to reorder" />
+                            <Label Grid.Column="2"
+                                   Text="{Binding Title}"
+                                   TextDecorations="{Binding TitleDecorations}"
+                                   FontSize="15"
+                                   TextColor="{Binding RowTextColor}"
+                                   VerticalTextAlignment="Center"
+                                   LineBreakMode="WordWrap"
+                                   HandlerChanged="TaskTitle_HandlerChanged">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="TaskTitle_Tapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                            <Button Grid.Column="3"
+                                    Text="⋯"
+                                    FontSize="22"
+                                    WidthRequest="38"
+                                    HeightRequest="42"
+                                    Padding="0"
+                                    BackgroundColor="Transparent"
+                                    TextColor="{AppThemeBinding Light=#687087, Dark=#BFC4D7}"
+                                    Clicked="TaskOptionsButton_Clicked"
+                                    AutomationProperties.Name="Task options"
+                                    VerticalOptions="Center" />
+                        </Grid>
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- Wallpaper layout settings -->
+        <Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*" ColumnSpacing="10" RowSpacing="4">
+            <Label Grid.Row="0" Grid.Column="0"
+                   Text="Clock layout"
+                   FontSize="12"
+                   FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light=#667085, Dark=#C4C8DA}"
+                   VerticalTextAlignment="Center" />
+            <Border x:Name="ClockLayoutSelector"
+                    Grid.Row="0" Grid.Column="1"
+                    HeightRequest="48"
+                    Padding="13,0,12,0"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 15"
+                    VerticalOptions="Center">
+                <Border.Shadow>
+                    <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="2,3" Radius="8" Opacity="0.38" />
+                </Border.Shadow>
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="ClockLayoutSelector_Tapped" />
+                </Border.GestureRecognizers>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <Label x:Name="ClockLayoutValue"
+                           Text="Tasks below top clock"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
+                           VerticalTextAlignment="Center"
+                           LineBreakMode="TailTruncation" />
+                    <Label Grid.Column="1"
+                           Text="⌄"
+                           FontSize="18"
+                           TextColor="{AppThemeBinding Light=#81799A, Dark=#B8AFD2}"
+                           VerticalTextAlignment="Center" />
+                </Grid>
+            </Border>
+            <Label Grid.Row="1" Grid.Column="0"
+                   Text="Auto update"
+                   FontSize="12"
+                   FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light=#667085, Dark=#C4C8DA}"
+                   VerticalTextAlignment="Center" />
+            <Border Grid.Row="1" Grid.Column="1"
+                    Padding="10,4"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightInset}, Dark={StaticResource LocksyDarkInset}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorder}, Dark={StaticResource LocksyDarkBorderStrong}}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 12"
+                    VerticalOptions="Center">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Label Text="Apply edits when app is in background"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}"
+                           VerticalTextAlignment="Center" />
+                    <Grid Grid.Column="1" WidthRequest="48" HeightRequest="30" VerticalOptions="Center">
+                        <Border x:Name="AutoApplyTrack"
+                                WidthRequest="46"
+                                HeightRequest="27"
+                                Padding="3"
+                                BackgroundColor="{AppThemeBinding Light=#C8D1E0, Dark=#14151F}"
+                                Stroke="{AppThemeBinding Light=#B7C2D4, Dark=#3B3E52}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 16"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                SemanticProperties.Description="Automatically refresh wallpaper after task edits">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="AutoApplyTrack_Tapped" />
+                            </Border.GestureRecognizers>
+                            <Grid>
+                                <Ellipse x:Name="AutoApplyThumb"
+                                         WidthRequest="19"
+                                         HeightRequest="19"
+                                         Fill="#F8F9FD"
+                                         HorizontalOptions="Start"
+                                         VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                        <Switch x:Name="AutoApplySwitch"
+                                IsVisible="False"
+                                Toggled="AutoApplySwitch_Toggled"
+                                OnColor="#8875E8"
+                                ThumbColor="#F8F9FD" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="4" ColumnDefinitions="*,*" ColumnSpacing="8">
+            <Button Grid.Column="0"
+                    Text="Clear completed"
+                    Command="{Binding ClearCompletedCommand}"
+                    HeightRequest="48"
+                    CornerRadius="15"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                    TextColor="{AppThemeBinding Light=#625B7A, Dark=#D9D4F0}"
+                    FontSize="13">
+                <Button.Shadow>
+                    <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="2,3" Radius="8" Opacity="0.38" />
+                </Button.Shadow>
+            </Button>
+            <Grid Grid.Column="1">
+                <Button x:Name="ApplyButton"
+                        Text="Apply wallpaper"
+                        Clicked="ApplyButton_Clicked"
+                        HeightRequest="48"
+                        CornerRadius="15"
+                        FontSize="13"
+                        FontAttributes="Bold"
+                        BackgroundColor="#8875E8"
+                        TextColor="White">
+                    <Button.Shadow>
+                        <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyAccentShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="2,3" Radius="8" Opacity="0.42" />
+                    </Button.Shadow>
+                </Button>
+                <HorizontalStackLayout x:Name="ApplyBusyContent"
+                                       IsVisible="False"
+                                       InputTransparent="True"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center"
+                                       Spacing="7">
+                    <ActivityIndicator x:Name="ApplySpinner"
+                                       IsRunning="False"
+                                       IsVisible="True"
+                                       Color="White"
+                                       WidthRequest="19"
+                                       HeightRequest="19"
+                                       VerticalOptions="Center" />
+                    <Label Text="Applying…"
+                           TextColor="White"
+                           FontSize="13"
+                           FontAttributes="Bold"
+                           VerticalTextAlignment="Center" />
+                </HorizontalStackLayout>
+            </Grid>
+        </Grid>
+
+        <Grid Grid.Row="5" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <Label x:Name="StatusLabel"
+                   Text="Ready · Drag ⠿ to reorder"
+                   FontSize="11"
+                   TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}"
+                   VerticalTextAlignment="Center" />
+            <Label Grid.Column="1"
+                   Text="First 8 tasks on wallpaper"
+                   FontSize="10"
+                   TextColor="{AppThemeBinding Light=#9298AA, Dark=#777E94}"
+                   VerticalTextAlignment="Center" />
+        </Grid>
+    
+
+        <!-- Floating drag preview lives at the page root so it renders above CollectionView cells. -->
+        <Grid x:Name="DragOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="6"
+              ZIndex="90"
+              IsVisible="False"
+              Opacity="1"
+              InputTransparent="True"
+              HorizontalOptions="Fill"
+              VerticalOptions="Fill">
+            <Border x:Name="DragGhostBorder"
+                    IsVisible="False"
+                    InputTransparent="True"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Start"
+                    WidthRequest="300"
+                    HeightRequest="58"
+                    Padding="8,6"
+                    Opacity="0.98"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                    Stroke="#A99AFF"
+                    StrokeThickness="2"
+                    StrokeShape="RoundRectangle 16">
+                <Border.Shadow>
+                    <Shadow Brush="{AppThemeBinding Light=#AEB6C6, Dark=#101119}" Offset="5,7" Radius="16" Opacity="0.82" />
+                </Border.Shadow>
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="7">
+                    <CheckBox x:Name="DragGhostCheckBox"
+                              Grid.Column="0"
+                              IsEnabled="False"
+                              Color="#8875E8"
+                              VerticalOptions="Center" />
+                    <Label Grid.Column="1"
+                           Text="⠿"
+                           FontSize="23"
+                           WidthRequest="36"
+                           HeightRequest="44"
+                           HorizontalTextAlignment="Center"
+                           VerticalTextAlignment="Center"
+                           TextColor="{AppThemeBinding Light=#8875E8, Dark=#B7A9FF}" />
+                    <Label x:Name="DragGhostTitle"
+                           Grid.Column="2"
+                           Text="Moving task"
+                           FontSize="15"
+                           LineBreakMode="WordWrap"
+                           VerticalTextAlignment="Center"
+                           TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}" />
+                    <Label Grid.Column="3"
+                           Text="⋯"
+                           FontSize="22"
+                           WidthRequest="38"
+                           HeightRequest="42"
+                           HorizontalTextAlignment="Center"
+                           VerticalTextAlignment="Center"
+                           TextColor="{AppThemeBinding Light=#687087, Dark=#BFC4D7}" />
+                </Grid>
+            </Border>
+        </Grid>
+
+      </Grid>
+
+      <!-- Full-page modal layer. A real backdrop consumes outside taps, and PageContent is
+           made input-transparent while the modal is open to prevent any touch-through. -->
+      <Grid x:Name="ModalOverlay"
+            ZIndex="100"
+            IsVisible="False"
+            Opacity="0"
+            BackgroundColor="Transparent"
+            HorizontalOptions="Fill"
+            VerticalOptions="Fill">
+            <BoxView Color="#990A0913"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="ModalBackdrop_Tapped" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+            <Border x:Name="ModalCard"
+                    MaximumWidthRequest="380"
+                    Padding="16"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                    Stroke="{AppThemeBinding Light=#CDD5E2, Dark=#383A4D}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 26"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+                    <Grid Grid.Row="0" ColumnDefinitions="44,*" ColumnSpacing="12">
+                        <Border WidthRequest="44"
+                                HeightRequest="44"
+                                BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                                Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 15"
+                                VerticalOptions="Center">
+                            <Grid>
+                                <Label x:Name="ModalIconLabel"
+                                       Text="✦"
+                                       FontSize="22"
+                                       TextColor="#8A76EB"
+                                       HorizontalTextAlignment="Center"
+                                       VerticalTextAlignment="Center"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                                <Image x:Name="ModalIconImage"
+                                       IsVisible="False"
+                                       WidthRequest="23"
+                                       HeightRequest="23"
+                                       Aspect="AspectFit"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
+                            <Label Text="LOCKSY  ·  QUICK ACTION"
+                                   FontSize="9"
+                                   CharacterSpacing="1.1"
+                                   FontAttributes="Bold"
+                                   TextColor="#8A76EB" />
+                            <Label x:Name="ModalTitle"
+                                   Text="Locksy"
+                                   FontSize="21"
+                                   FontAttributes="Bold"
+                                   LineBreakMode="WordWrap"
+                                   TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}" />
+                        </VerticalStackLayout>
+                    </Grid>
+                    <Label x:Name="ModalMessage"
+                           Grid.Row="1"
+                           IsVisible="False"
+                           FontSize="13"
+                           LineHeight="1.25"
+                           LineBreakMode="WordWrap"
+                           TextColor="{AppThemeBinding Light=#6F7589, Dark=#ADB2C8}" />
+                    <ScrollView x:Name="ModalBodyScroll"
+                                Grid.Row="2"
+                                MaximumHeightRequest="300"
+                                VerticalScrollBarVisibility="Default"
+                                HorizontalScrollBarVisibility="Never">
+                        <VerticalStackLayout x:Name="ModalBody" Spacing="8" />
+                    </ScrollView>
+                    <VerticalStackLayout x:Name="ModalButtons"
+                                         Grid.Row="3"
+                                         Spacing="8" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</ContentPage>

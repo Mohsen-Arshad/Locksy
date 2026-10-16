@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Locksy.SplashPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    NavigationPage.HasNavigationBar="False"
+    BackgroundColor="Transparent">
+
+    <Grid x:Name="RootGrid" Padding="26,28" RowDefinitions="*,Auto">
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#20212D" Offset="0.0" />
+                <GradientStop Color="#212332" Offset="0.52" />
+                <GradientStop Color="#25263A" Offset="1.0" />
+            </LinearGradientBrush>
+        </Grid.Background>
+        <!-- Lightweight corner glows. Two low-contrast gradients cross-fade while a slim
+             orbit highlight rotates on the ellipse circumference; all remain GPU-friendly. -->
+        <Grid x:Name="TopGlowStage"
+              WidthRequest="250"
+              HeightRequest="250"
+              HorizontalOptions="End"
+              VerticalOptions="Start"
+              TranslationX="105"
+              TranslationY="-112"
+              InputTransparent="True">
+            <Ellipse x:Name="TopGlow" WidthRequest="250" HeightRequest="250">
+                <Ellipse.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#232B2858" Offset="0.0" />
+                        <GradientStop Color="#213D4B78" Offset="0.56" />
+                        <GradientStop Color="#202D3D66" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse x:Name="TopGlowAlt" WidthRequest="250" HeightRequest="250" Opacity="0.10">
+                <Ellipse.Fill>
+                    <LinearGradientBrush StartPoint="0,1" EndPoint="1,0">
+                        <GradientStop Color="#282F66B8" Offset="0.0" />
+                        <GradientStop Color="#242B4E86" Offset="0.55" />
+                        <GradientStop Color="#222B3F70" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Image x:Name="TopGlowOrbit"
+                   Source="splash_orbit_top.png"
+                   WidthRequest="250"
+                   HeightRequest="250"
+                   Aspect="AspectFit"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"
+                   Opacity="0.84" />
+        </Grid>
+        <Grid x:Name="BottomGlowStage"
+              Grid.Row="0"
+              WidthRequest="230"
+              HeightRequest="230"
+              HorizontalOptions="Start"
+              VerticalOptions="End"
+              TranslationX="-112"
+              TranslationY="88"
+              InputTransparent="True">
+            <Ellipse x:Name="BottomGlow" WidthRequest="230" HeightRequest="230">
+                <Ellipse.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#202D647A" Offset="0.0" />
+                        <GradientStop Color="#1D2D465D" Offset="0.58" />
+                        <GradientStop Color="#202A2E4E" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse x:Name="BottomGlowAlt" WidthRequest="230" HeightRequest="230" Opacity="0.08">
+                <Ellipse.Fill>
+                    <LinearGradientBrush StartPoint="1,0" EndPoint="0,1">
+                        <GradientStop Color="#242F5F92" Offset="0.0" />
+                        <GradientStop Color="#252E4A7C" Offset="0.50" />
+                        <GradientStop Color="#242E6B94" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Image x:Name="BottomGlowOrbit"
+                   Source="splash_orbit_bottom.png"
+                   WidthRequest="230"
+                   HeightRequest="230"
+                   Aspect="AspectFit"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"
+                   Opacity="0.78" />
+        </Grid>
+
+        <VerticalStackLayout
+            Grid.Row="0"
+            HorizontalOptions="Center"
+            VerticalOptions="Center"
+            Spacing="0">
+
+            <Grid
+                x:Name="LogoStage"
+                WidthRequest="132"
+                HeightRequest="132"
+                HorizontalOptions="Center">
+                <Ellipse
+                    x:Name="LogoHalo"
+                    WidthRequest="128"
+                    HeightRequest="128"
+                    Fill="#147561D8"
+                    Stroke="#397561D8"
+                    StrokeThickness="1"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center" />
+                <Border
+                    x:Name="LogoBadge"
+                    WidthRequest="104"
+                    HeightRequest="104"
+                    Padding="0"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    BackgroundColor="Transparent"
+                    Stroke="Transparent"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 29">
+                    <!-- No offset shadow here: keeping the logo optically centered matters more than a fake lift. -->
+                    <Image Source="locksy_app_logo.png"
+                           Aspect="AspectFit"
+                           WidthRequest="96"
+                           HeightRequest="96"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+                </Border>
+            </Grid>
+
+            <Label
+                x:Name="BrandLabel"
+                Text="Locksy"
+                Margin="0,24,0,0"
+                FontSize="39"
+                FontAttributes="Bold"
+                CharacterSpacing="0.2"
+                TextColor="#F1F2FA"
+                HorizontalTextAlignment="Center"
+                HorizontalOptions="Center" />
+
+            <Border
+                x:Name="AccentPill"
+                WidthRequest="42"
+                HeightRequest="4"
+                Margin="0,15,0,17"
+                HorizontalOptions="Center"
+                BackgroundColor="#79F0C4"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 2" />
+
+            <Label
+                x:Name="TaglineLabel"
+                Text="Your tasks, right on your lock screen."
+                FontSize="14"
+                CharacterSpacing="0.1"
+                TextColor="#BEC3D8"
+                HorizontalTextAlignment="Center"
+                HorizontalOptions="Center"
+                LineBreakMode="WordWrap"
+                MaximumWidthRequest="290" />
+
+            <Grid
+                x:Name="ProgressTrack"
+                WidthRequest="112"
+                HeightRequest="4"
+                Margin="0,30,0,0"
+                HorizontalOptions="Center">
+                <Border BackgroundColor="#303245" StrokeThickness="0" StrokeShape="RoundRectangle 2" />
+                <BoxView
+                    x:Name="ProgressFill"
+                    WidthRequest="112"
+                    HeightRequest="4"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Center"
+                    AnchorX="0"
+                    ScaleX="0"
+                    Color="#9A89F5"
+                    CornerRadius="2" />
+            </Grid>
+        </VerticalStackLayout>
+
+        <Label
+            Grid.Row="1"
+            x:Name="FooterLabel"
+            Text="A LITTLE MORE IN SIGHT."
+            FontSize="10"
+            CharacterSpacing="2.1"
+            TextColor="#858BA2"
+            HorizontalTextAlignment="Center"
+            HorizontalOptions="Center"
+            Margin="0,0,0,12" />
+    </Grid>
+</ContentPage>

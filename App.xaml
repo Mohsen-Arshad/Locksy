@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Application
+    x:Class="Locksy.App"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Locksy semantic palette: page, raised surfaces, inset surfaces, borders and typography. -->
+            <Color x:Key="LocksyAccent">#8875E8</Color>
+            <Color x:Key="LocksyMint">#79F0C4</Color>
+
+            <Color x:Key="LocksyLightBackground">#E6E9F1</Color>
+            <Color x:Key="LocksyLightRaised">#F0F2F8</Color>
+            <Color x:Key="LocksyLightInset">#E1E6F0</Color>
+            <Color x:Key="LocksyLightBorder">#D0D7E3</Color>
+            <Color x:Key="LocksyLightBorderSoft">#D4DBE7</Color>
+            <Color x:Key="LocksyLightText">#303545</Color>
+            <Color x:Key="LocksyLightMuted">#6F7588</Color>
+            <Color x:Key="LocksyLightShadow">#B5BDCC</Color>
+            <Color x:Key="LocksyLightHighlight">#FCFDFF</Color>
+            <Color x:Key="LocksyLightShadowEdge">#C4CCDA</Color>
+
+            <Color x:Key="LocksyDarkBackground">#20212D</Color>
+            <Color x:Key="LocksyDarkRaised">#252736</Color>
+            <Color x:Key="LocksyDarkInset">#1A1B26</Color>
+            <Color x:Key="LocksyDarkBorder">#383A4D</Color>
+            <Color x:Key="LocksyDarkBorderStrong">#303244</Color>
+            <Color x:Key="LocksyDarkText">#F1F2FA</Color>
+            <Color x:Key="LocksyDarkMuted">#A9AEC2</Color>
+            <Color x:Key="LocksyDarkShadow">#11121A</Color>
+            <Color x:Key="LocksyDarkHighlight">#363849</Color>
+            <Color x:Key="LocksyDarkShadowEdge">#14151F</Color>
+
+            <!-- Legacy keys kept so existing code-behind references remain valid. -->
+            <Color x:Key="LocksyLightSurface">#E6E9F1</Color>
+            <Color x:Key="LocksyDarkSurface">#20212D</Color>
+            <SolidColorBrush x:Key="LocksyLightShadowBrush" Color="#B5BDCC" />
+            <SolidColorBrush x:Key="LocksyDarkShadowBrush" Color="#11121A" />
+            <SolidColorBrush x:Key="LocksyAccentShadowBrush" Color="#A9A0D9" />
+            <Color x:Key="LocksyDark">#17172D</Color>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

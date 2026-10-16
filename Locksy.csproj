@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Locksy</RootNamespace>
+    <AssemblyName>Locksy</AssemblyName>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationTitle>Locksy</ApplicationTitle>
+    <ApplicationId>com.mohsen.locksy</ApplicationId>
+    <ApplicationDisplayVersion>1.0.1</ApplicationDisplayVersion>
+    <ApplicationVersion>2</ApplicationVersion>
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <TargetSdkVersion>35</TargetSdkVersion>
+    <AndroidUseLatestPlatformSdk>true</AndroidUseLatestPlatformSdk>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.111" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources/AppIcon/appicon.png"
+              Color="#070910"
+              BaseSize="128,128" />
+    <MauiSplashScreen Include="Resources/Splash/splash.png"
+                      Color="#20212D"
+                      BaseSize="112,112" />
+    <MauiImage Include="Resources/Images/*" />
+    <MauiAsset Include="Resources/Raw/**"
+               LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
