@@ -564,6 +564,11 @@ public partial class MainPage : ContentPage
 
         var paletteBorders = new Dictionary<string, Border>(StringComparer.Ordinal);
         var paletteLabels = new Dictionary<string, Label>(StringComparer.Ordinal);
+
+        // Declare the captured layout before attaching event handlers so it is
+        // definitely assigned when RefreshColorRows is invoked by a tap.
+        var colorRows = new VerticalStackLayout { Spacing = 7 };
+
         for (var paletteIndex = 0; paletteIndex < TodoPalette.Palettes.Count; paletteIndex++)
         {
             var palette = TodoPalette.Palettes[paletteIndex];
@@ -601,7 +606,6 @@ public partial class MainPage : ContentPage
             paletteSelector.Add(border, paletteIndex, 0);
         }
 
-        var colorRows = new VerticalStackLayout { Spacing = 7 };
         ModalBody.Children.Add(paletteSelector);
         ModalBody.Children.Add(colorRows);
 
