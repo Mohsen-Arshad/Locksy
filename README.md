@@ -69,4 +69,6 @@ Bug reports, device compatibility notes, and focused improvements are welcome. W
 
 ## License
 
-Locksy is licensed under the MIT License. You are free to use, copy, modify, merge, publish, distribute, sublicense, and sell copies of the software, subject to the terms and conditions of the MIT License.
+This project is licensed under the **GNU General Public License v2.0 (GPL-2.0)**.
+
+See the [LICENSE](LICENSE) file for the full text.
