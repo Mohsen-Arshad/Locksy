@@ -8,15 +8,15 @@ Locksy is an Android app built with .NET MAUI that lets you manage reminders and
 
 ## Features
 
-- **Manage reminders** — Add, edit, complete, delete, and reorder items.
-- **Lock-screen wallpaper** — Render reminders into a custom wallpaper and apply it to the lock screen.
-- **Automatic or manual updates** — Apply the wallpaper manually or refresh it after reminder changes.
-- **Customizable layouts** — Choose different arrangements that leave room for the Android lock-screen clock, with controls for vertical placement and clock clearance.
-- **Task colors** — Choose colors for individual reminders and organize the list visually.
-- **Light and dark themes** — Switch the app's appearance while preserving each reminder's saved color choice.
-- **One-time alarms** — Schedule reminder notifications for a selected date and time. Active reminders are visually distinguished from inactive ones on the wallpaper.
-- **Local storage** — Store reminder data in the app's private storage.
-- **Custom startup experience** — Includes a branded launcher icon and animated in-app splash screen.
+- **Manage reminders** - Add, edit, complete, delete, and reorder items.
+- **Lock-screen wallpaper** - Render reminders into a custom wallpaper and apply it to the lock screen.
+- **Automatic or manual updates** - Apply the wallpaper manually or refresh it after reminder changes.
+- **Customizable layouts** - Choose different arrangements that leave room for the Android lock-screen clock, with controls for vertical placement and clock clearance.
+- **Task colors** - Choose colors for individual reminders and organize the list visually.
+- **Light and dark themes** - Switch the app's appearance while preserving each reminder's saved color choice.
+- **One-time alarms** - Schedule reminder notifications for a selected date and time. Active reminders are visually distinguished from inactive ones on the wallpaper.
+- **Local storage** - Store reminder data in the app's private storage.
+- **Custom startup experience** - Includes a branded launcher icon and animated in-app splash screen.
 
 ## Tech Stack
 
