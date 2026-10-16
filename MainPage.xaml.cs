@@ -525,82 +525,171 @@ public partial class MainPage : ContentPage
 
     private async Task ChooseTaskColorAsync(TodoItem task)
     {
-        var selectedKey = await ShowTaskPalettePopupAsync(task);
-        if (string.IsNullOrWhiteSpace(selectedKey)) return;
+        var selection = await ShowTaskPalettePopupAsync(task);
+        if (string.IsNullOrWhiteSpace(selection)) return;
 
-        var option = TodoPalette.Options.FirstOrDefault(item => item.Key == selectedKey);
+        var parts = selection.Split('|', 2, StringSplitOptions.TrimEntries);
+        if (parts.Length != 2) return;
+
+        var paletteKey = parts[0];
+        var colorKey = parts[1];
+        if (!TodoPalette.IsValidPaletteKey(paletteKey)) return;
+
+        var option = TodoPalette.Options.FirstOrDefault(item => item.Key == colorKey);
         if (option is null) return;
 
-        _viewModel.ChangeColor(task, option.Key);
-        StatusLabel.Text = $"Color changed to {option.Name}.";
+        _viewModel.ChangeColor(task, option.Key, paletteKey);
+        StatusLabel.Text = $"{option.Name} · {TodoPalette.GetPaletteName(paletteKey)} palette.";
     }
 
     private Task<string?> ShowTaskPalettePopupAsync(TodoItem task)
     {
         var completion = BeginPopup(
             "Task color",
-            "Choose a soft tint for this task. Scroll the list to see every color.",
+            "Choose a palette first, then a color. Your choice stays the same in Light and Dark mode.",
             "◉");
 
-        foreach (var option in TodoPalette.Options)
+        var selectedPaletteKey = TodoPalette.IsValidPaletteKey(task.ColorPaletteKey)
+            ? task.ColorPaletteKey
+            : TodoPalette.VibrantPaletteKey;
+
+        var paletteSelector = new Grid
         {
-            var swatchColor = Color.FromArgb(ThemeService.IsDarkMode() ? option.DarkHex : option.LightHex);
-            var selected = task.ColorKey == option.Key;
-            var row = new Grid
-            {
-                ColumnSpacing = 12,
-                Padding = new Thickness(12, 7),
-                HeightRequest = 52
-            };
-            row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(34)));
-            row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-            row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(24)));
+            ColumnSpacing = 6,
+            Margin = new Thickness(0, 0, 0, 10),
+            HeightRequest = 40
+        };
+        for (var i = 0; i < TodoPalette.Palettes.Count; i++)
+            paletteSelector.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
-            row.Add(new Border
+        var paletteBorders = new Dictionary<string, Border>(StringComparer.Ordinal);
+        var paletteLabels = new Dictionary<string, Label>(StringComparer.Ordinal);
+        for (var paletteIndex = 0; paletteIndex < TodoPalette.Palettes.Count; paletteIndex++)
+        {
+            var palette = TodoPalette.Palettes[paletteIndex];
+            var label = new Label
             {
-                WidthRequest = 28,
-                HeightRequest = 28,
-                BackgroundColor = swatchColor,
-                Stroke = new SolidColorBrush(PopupColor("#D9D1E7", "#5A536C")),
-                StrokeThickness = 1,
-                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
-                Shadow = CreateNeumorphicShadow(0.24f),
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions = LayoutOptions.Center
-            }, 0, 0);
-            row.Add(new Label
-            {
-                Text = option.Name,
-                FontSize = 13,
-                FontAttributes = selected ? FontAttributes.Bold : FontAttributes.None,
-                TextColor = PopupColor("#3F4559", "#E5E7F5"),
-                VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
-            }, 1, 0);
-            row.Add(new Label
-            {
-                Text = selected ? "✓" : string.Empty,
-                FontSize = 17,
+                Text = palette.Name,
+                FontSize = 10.5,
                 FontAttributes = FontAttributes.Bold,
-                TextColor = Color.FromArgb("#8A76EB"),
                 HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
-                VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
-            }, 2, 0);
-
-            var choiceBorder = new Border
-            {
-                BackgroundColor = selected ? PopupColor("#E2E7F1", "#2A2C3D") : PopupColor("#F0F2F8", "#252736"),
-                Stroke = new SolidColorBrush(selected ? Color.FromArgb("#8A76EB") : PopupColor("#D1D9E5", "#383A4D")),
-                StrokeThickness = selected ? 1.5 : 1,
-                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
-                Shadow = CreateNeumorphicShadow(selected ? 0.26f : 0.38f),
-                Content = row
+                VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center,
+                TextColor = PopupColor("#5B536F", "#C6BEDD")
             };
+            var border = new Border
+            {
+                Padding = new Thickness(4, 2),
+                Content = label,
+                BackgroundColor = PopupColor("#E9EAF2", "#20212E"),
+                Stroke = new SolidColorBrush(PopupColor("#D1D6E3", "#38394C")),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(11) },
+                VerticalOptions = LayoutOptions.Fill,
+                HorizontalOptions = LayoutOptions.Fill
+            };
+            var key = palette.Key;
             var tap = new TapGestureRecognizer();
-            tap.Tapped += (_, _) => CompletePopup(option.Key);
-            choiceBorder.GestureRecognizers.Add(tap);
-            ModalBody.Children.Add(choiceBorder);
+            tap.Tapped += (_, _) =>
+            {
+                selectedPaletteKey = key;
+                RefreshPaletteSelector();
+                RefreshColorRows();
+            };
+            border.GestureRecognizers.Add(tap);
+            paletteBorders[key] = border;
+            paletteLabels[key] = label;
+            paletteSelector.Add(border, paletteIndex, 0);
         }
 
+        var colorRows = new VerticalStackLayout { Spacing = 7 };
+        ModalBody.Children.Add(paletteSelector);
+        ModalBody.Children.Add(colorRows);
+
+        void RefreshPaletteSelector()
+        {
+            foreach (var palette in TodoPalette.Palettes)
+            {
+                var selected = selectedPaletteKey == palette.Key;
+                paletteBorders[palette.Key].BackgroundColor = selected
+                    ? PopupColor("#E1D9FF", "#3A3158")
+                    : PopupColor("#E9EAF2", "#20212E");
+                paletteBorders[palette.Key].Stroke = new SolidColorBrush(selected
+                    ? Color.FromArgb("#8A76EB")
+                    : PopupColor("#D1D6E3", "#38394C"));
+                paletteBorders[palette.Key].StrokeThickness = selected ? 1.6 : 1;
+                paletteLabels[palette.Key].TextColor = selected
+                    ? PopupColor("#46347F", "#F1ECFF")
+                    : PopupColor("#5B536F", "#C6BEDD");
+            }
+        }
+
+        void RefreshColorRows()
+        {
+            colorRows.Children.Clear();
+            foreach (var option in TodoPalette.Options)
+            {
+                // The swatch comes from the selected palette, never from app theme.
+                var swatchColor = Color.FromArgb(TodoPalette.GetHex(option.Key, selectedPaletteKey));
+                var selected = task.ColorKey == option.Key && task.ColorPaletteKey == selectedPaletteKey;
+                var row = new Grid
+                {
+                    ColumnSpacing = 12,
+                    Padding = new Thickness(12, 7),
+                    HeightRequest = 52
+                };
+                row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(34)));
+                row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+                row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(24)));
+
+                row.Add(new Border
+                {
+                    WidthRequest = 28,
+                    HeightRequest = 28,
+                    BackgroundColor = swatchColor,
+                    Stroke = new SolidColorBrush(PopupColor("#D9D1E7", "#5A536C")),
+                    StrokeThickness = 1,
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
+                    Shadow = CreateNeumorphicShadow(0.24f),
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center
+                }, 0, 0);
+                row.Add(new Label
+                {
+                    Text = option.Name,
+                    FontSize = 13,
+                    FontAttributes = selected ? FontAttributes.Bold : FontAttributes.None,
+                    TextColor = PopupColor("#3F4559", "#E5E7F5"),
+                    VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
+                }, 1, 0);
+                row.Add(new Label
+                {
+                    Text = selected ? "✓" : string.Empty,
+                    FontSize = 17,
+                    FontAttributes = FontAttributes.Bold,
+                    TextColor = Color.FromArgb("#8A76EB"),
+                    HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
+                    VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
+                }, 2, 0);
+
+                var choiceBorder = new Border
+                {
+                    BackgroundColor = selected ? PopupColor("#E2E7F1", "#2A2C3D") : PopupColor("#F0F2F8", "#252736"),
+                    Stroke = new SolidColorBrush(selected ? Color.FromArgb("#8A76EB") : PopupColor("#D1D9E5", "#383A4D")),
+                    StrokeThickness = selected ? 1.5 : 1,
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
+                    Shadow = CreateNeumorphicShadow(selected ? 0.26f : 0.38f),
+                    Content = row
+                };
+                var colorTap = new TapGestureRecognizer();
+                var selectedColorKey = option.Key;
+                colorTap.Tapped += (_, _) => CompletePopup($"{selectedPaletteKey}|{selectedColorKey}");
+                choiceBorder.GestureRecognizers.Add(colorTap);
+                colorRows.Children.Add(choiceBorder);
+            }
+        }
+
+        RefreshPaletteSelector();
+        RefreshColorRows();
         ModalButtons.Children.Add(CreatePopupAction("Cancel", null, primary: false, destructive: false));
         return completion.Task;
     }
