@@ -13,6 +13,7 @@ public sealed class TodoItem : INotifyPropertyChanged
     private string _title = string.Empty;
     private bool _isCompleted;
     private string _colorKey = TodoPalette.DefaultKey;
+    private string _colorPaletteKey = TodoPalette.VibrantPaletteKey;
     private bool _isReminderEnabled;
     private DateTime? _reminderAt;
 
@@ -88,11 +89,31 @@ public sealed class TodoItem : INotifyPropertyChanged
         }
     }
 
-    [JsonIgnore]
-    public Color RowColor => Color.FromArgb(TodoPalette.GetHex(ColorKey, ThemeService.IsDarkMode()));
+    /// <summary>
+    /// Palette variant selected for this task. It is intentionally independent
+    /// of the app's Light/Dark appearance so the chosen tint remains consistent.
+    /// </summary>
+    public string ColorPaletteKey
+    {
+        get => _colorPaletteKey;
+        set
+        {
+            var normalized = TodoPalette.IsValidPaletteKey(value)
+                ? value
+                : TodoPalette.VibrantPaletteKey;
+            if (_colorPaletteKey == normalized) return;
+            _colorPaletteKey = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RowColor));
+            OnPropertyChanged(nameof(RowTextColor));
+        }
+    }
 
     [JsonIgnore]
-    public Color RowTextColor => Color.FromArgb(TodoPalette.GetTextHex(ColorKey, ThemeService.IsDarkMode()));
+    public Color RowColor => Color.FromArgb(TodoPalette.GetHex(ColorKey, ColorPaletteKey));
+
+    [JsonIgnore]
+    public Color RowTextColor => Color.FromArgb(TodoPalette.GetTextHex(ColorKey, ColorPaletteKey));
 
     [JsonIgnore]
     public TextDecorations TitleDecorations => IsCompleted ? TextDecorations.Strikethrough : TextDecorations.None;
