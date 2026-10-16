@@ -340,15 +340,11 @@ public sealed class AndroidWallpaperService : IWallpaperService
             var row = rows[i];
             if (y + row.Height > regionBottom + 1f && i > 0) break;
             var cardBottom = Math.Min(regionBottom, y + row.Height);
-            var palette = TodoPalette.GetOption(row.Task.ColorKey);
-            var paletteColor = AndroidColor.ParseColor(dark ? palette.DarkHex : palette.LightHex);
-
-            // Default cards exactly use the older frosted neutral style; custom colors stay visible as tints.
-            // Use a more opaque card fill so custom tints stay bright instead of mixing
-            // too heavily with the dark gradient beneath the wallpaper.
-            var background = row.Task.ColorKey == TodoPalette.DefaultKey
-                ? (dark ? AndroidColor.Argb(150, 24, 25, 35) : AndroidColor.Argb(245, 255, 255, 255))
-                : AndroidColor.Argb(dark ? (int)240 : 247, paletteColor.R, paletteColor.G, paletteColor.B);
+            // A task keeps its chosen palette variant independently of app appearance.
+            // Use an opaque fill so the same selection looks consistent in Light/Dark mode.
+            var paletteColor = AndroidColor.ParseColor(
+                TodoPalette.GetHex(row.Task.ColorKey, row.Task.ColorPaletteKey));
+            var background = AndroidColor.Argb(255, paletteColor.R, paletteColor.G, paletteColor.B);
             using (var cardPaint = new AndroidPaint { AntiAlias = true, Color = background })
                 canvas.DrawRoundRect(margin, y, margin + cardWidth, cardBottom, radius, radius, cardPaint);
 
@@ -395,9 +391,8 @@ public sealed class AndroidWallpaperService : IWallpaperService
                 canvas.DrawLine(clockCenterX, centerY, clockCenterX + clockRadius * 0.36f, centerY + clockRadius * 0.20f, clockPaint);
             }
 
-            var foreground = AndroidColor.ParseColor(dark ? palette.DarkTextHex : palette.LightTextHex);
-            if (row.Task.ColorKey == TodoPalette.DefaultKey)
-                foreground = dark ? AndroidColor.Rgb(246, 242, 250) : AndroidColor.Rgb(34, 31, 40);
+            var foreground = AndroidColor.ParseColor(
+                TodoPalette.GetTextHex(row.Task.ColorKey, row.Task.ColorPaletteKey));
             using var textPaint = new AndroidPaint { AntiAlias = true, Color = foreground };
             textPaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Normal)!);
             textPaint.TextSize = bodySize;

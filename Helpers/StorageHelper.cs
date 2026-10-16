@@ -63,7 +63,7 @@ public static class StorageHelper
             // Snapshot on the caller thread because the ObservableCollection and items
             // belong to the UI thread. The immutable snapshot can safely be serialized later.
             var snapshot = tasks.Select(task => new PersistedTask(
-                task.Id, task.Title, task.IsCompleted, task.ColorKey,
+                task.Id, task.Title, task.IsCompleted, task.ColorKey, task.ColorPaletteKey,
                 task.IsReminderEnabled, task.ReminderAt)).ToArray();
             var version = Interlocked.Increment(ref _requestedSaveVersion);
             _ = Task.Run(() => PersistLatestAsync(snapshot, version));
@@ -124,6 +124,6 @@ public static class StorageHelper
 
     // Property names intentionally match TodoItem so existing JSON files remain compatible.
     private sealed record PersistedTask(
-        Guid Id, string Title, bool IsCompleted, string ColorKey,
+        Guid Id, string Title, bool IsCompleted, string ColorKey, string ColorPaletteKey,
         bool IsReminderEnabled, DateTime? ReminderAt);
 }

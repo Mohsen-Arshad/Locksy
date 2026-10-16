@@ -62,9 +62,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (title.Length > 0) task.Title = title;
     }
 
-    public void ChangeColor(TodoItem task, string colorKey)
+    public void ChangeColor(TodoItem task, string colorKey) =>
+        ChangeColor(task, colorKey, task.ColorPaletteKey);
+
+    public void ChangeColor(TodoItem task, string colorKey, string paletteKey)
     {
-        if (TodoPalette.IsValidKey(colorKey)) task.ColorKey = colorKey;
+        if (!TodoPalette.IsValidKey(colorKey) || !TodoPalette.IsValidPaletteKey(paletteKey))
+            return;
+
+        task.ColorKey = colorKey;
+        task.ColorPaletteKey = paletteKey;
     }
 
     public void MoveTask(Guid sourceId, Guid targetId)
@@ -132,6 +139,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (e.PropertyName != nameof(TodoItem.Title) &&
             e.PropertyName != nameof(TodoItem.IsCompleted) &&
             e.PropertyName != nameof(TodoItem.ColorKey) &&
+            e.PropertyName != nameof(TodoItem.ColorPaletteKey) &&
             e.PropertyName != nameof(TodoItem.IsReminderEnabled) &&
             e.PropertyName != nameof(TodoItem.ReminderAt))
             return;
