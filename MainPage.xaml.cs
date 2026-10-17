@@ -21,8 +21,8 @@ public partial class MainPage : ContentPage
     private const string LastWallpaperOperationPreferenceKey = "locksy-last-wallpaper-operation-utc-ticks";
     private const string AutoApplyPendingPreferenceKey = "locksy-auto-apply-pending";
     private const string AutoApplyQueuedStatus = "Auto update queued for background.";
-    // Opens the developer's repository list; replace with the exact repository URL once it is public.
-    private const string ProjectGitHubUrl = "https://github.com/Mohsen-Arshad?tab=repositories";
+    // Official Locksy source repository.
+    private const string ProjectGitHubUrl = "https://github.com/Mohsen-Arshad/Locksy";
 
     private readonly MainViewModel _viewModel;
     private readonly IWallpaperService _wallpaperService;
@@ -333,15 +333,30 @@ public partial class MainPage : ContentPage
             TextColor = PopupColor("#625B7A", "#D9D4F0"),
             Margin = new Thickness(1, 2, 1, 2)
         });
-        ModalBody.Children.Add(new Label
+        var repositoryLink = new Label
         {
-            Text = "github.com/Mohsen-Arshad?tab=repositories",
+            Text = ProjectGitHubUrl,
             FontSize = 11.5,
             TextColor = Color.FromArgb("#8A76EB"),
+            TextDecorations = TextDecorations.Underline,
             LineBreakMode = LineBreakMode.WordWrap,
-            FlowDirection = Microsoft.Maui.Controls.FlowDirection.LeftToRight,
+            FlowDirection = Microsoft.Maui.FlowDirection.LeftToRight,
             HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Start
-        });
+        };
+        var repositoryTap = new TapGestureRecognizer();
+        repositoryTap.Tapped += async (_, _) =>
+        {
+            try
+            {
+                await Launcher.Default.OpenAsync(new Uri(ProjectGitHubUrl));
+            }
+            catch
+            {
+                await ShowInfoPopupAsync("Could not open GitHub", "Please check your internet connection and try again.", isError: true);
+            }
+        };
+        repositoryLink.GestureRecognizers.Add(repositoryTap);
+        ModalBody.Children.Add(repositoryLink);
 
         ModalButtons.Children.Add(CreatePopupAction("Close", null, primary: false, destructive: false));
         ModalButtons.Children.Add(CreatePopupAction("Open GitHub", "__OPEN_GITHUB__", primary: true, destructive: false,
