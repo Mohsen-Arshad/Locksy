@@ -10,6 +10,7 @@ public partial class App : Application
 
     public App()
     {
+        LocalizationService.ApplyCulture();
         InitializeComponent();
         ThemeService.ApplySavedPreference();
     }

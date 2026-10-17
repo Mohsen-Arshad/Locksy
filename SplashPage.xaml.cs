@@ -1,6 +1,7 @@
 using Microsoft.Maui.ApplicationModel;
 using Locksy.Helpers;
 using Locksy.Models;
+using Locksy.Services;
 
 namespace Locksy;
 
@@ -15,6 +16,12 @@ public partial class SplashPage : ContentPage
     {
         InitializeComponent();
         NavigationPage.SetHasNavigationBar(this, false);
+        LocalizationService.ApplyCulture();
+        FlowDirection = LocalizationService.CurrentFlowDirection;
+        RootGrid.FlowDirection = FlowDirection;
+        TaglineLabel.Text = LocalizationService.Translate("Your tasks, right on your lock screen.");
+        FooterLabel.Text = LocalizationService.Translate("A LITTLE MORE IN SIGHT.");
+        VersionLabel.Text = $"{LocalizationService.Translate("Version")} {LocalizationService.LocalizeDigits(AppInfo.Current.VersionString)}";
     }
 
     protected override async void OnAppearing()
@@ -43,6 +50,7 @@ public partial class SplashPage : ContentPage
         TaglineLabel.TranslationY = 8;
         ProgressFill.ScaleX = 0;
         FooterLabel.Opacity = 0;
+        VersionLabel.Opacity = 0;
 
         try
         {
@@ -58,7 +66,8 @@ public partial class SplashPage : ContentPage
             await Task.WhenAll(
                 TaglineLabel.FadeTo(1, 370, Easing.CubicOut),
                 TaglineLabel.TranslateTo(0, 0, 370, Easing.CubicOut),
-                FooterLabel.FadeTo(1, 360, Easing.CubicOut));
+                FooterLabel.FadeTo(1, 360, Easing.CubicOut),
+                VersionLabel.FadeTo(1, 360, Easing.CubicOut));
 
             // Build the main page while the branded splash is still visible. Its XAML,
             // view model and local task JSON are prepared before the transition, eliminating
