@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.Maui.Storage;
 using Microsoft.Maui.Controls;
 
@@ -8,8 +9,13 @@ namespace Locksy.Services;
 public static class LocalizationService
 {
     private const string LanguagePreferenceKey = "locksy-language";
+    private const string EnglishDefaultMigrationKey = "locksy-v1.2.2-english-default-applied";
     private static readonly CultureInfo EnglishCulture = CultureInfo.GetCultureInfo("en-US");
     private static readonly CultureInfo PersianCulture = CultureInfo.GetCultureInfo("fa-IR");
+
+    private static readonly Regex EmbeddedLeftToRightRun = new(
+        @"(?i:https?://[^\s]+)|(?<![A-Za-z0-9])[A-Za-z0-9]+(?:[._:/?#&=%+@'-][A-Za-z0-9]+)*(?:\s+[A-Za-z0-9]+(?:[._:/?#&=%+@'-][A-Za-z0-9]+)*)*",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly IReadOnlyDictionary<string, string> Persian = new Dictionary<string, string>(StringComparer.Ordinal)
     {
@@ -78,6 +84,7 @@ public static class LocalizationService
         ["English"] = "English",
         ["فارسی"] = "فارسی",
         ["Language updated."] = "زبان برنامه تغییر کرد.",
+        ["Language updated. Tap Apply wallpaper to refresh lock screen."] = "زبان برنامه تغییر کرد. برای تازه‌شدن متن صفحهٔ قفل، روی «اعمال پس‌زمینه» بزن.",
         ["Choose a personal image for your lock-screen wallpaper."] = "می‌توانی تصویر دلخواهت را برای پس‌زمینهٔ صفحهٔ قفل انتخاب کنی.",
         ["Choose image"] = "انتخاب تصویر",
         ["Remove custom background"] = "حذف تصویر دلخواه",
@@ -225,6 +232,50 @@ public static class LocalizationService
     {
         if (string.IsNullOrEmpty(value) || !IsPersian) return value ?? string.Empty;
         return Persian.TryGetValue(value, out var translated) ? translated : value;
+    }
+
+
+    /// <summary>
+    /// Applies display-only Unicode bidi embeddings to mixed Persian/Latin text.
+    /// Older MAUI/Android text paths can ignore isolate controls in Label text, so use
+    /// explicit RTL paragraph embedding and LTR embeddings for Latin runs instead.
+    /// This changes only the rendered string; stored task titles remain untouched.
+    /// </summary>
+    public static string PrepareTextForDisplay(string? value)
+    {
+        if (string.IsNullOrEmpty(value) || !IsPersian) return value ?? string.Empty;
+
+        var hasRightToLeftText = value.Any(c => c >= '\u0600' && c <= '\u06FF');
+        var hasAsciiRun = value.Any(c => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9');
+        if (!hasRightToLeftText || !hasAsciiRun) return value;
+
+        // RLE forces the paragraph's visual base direction to RTL, even when its first
+        // visible token is English (for example, "Locksy helps..."). Each LRE/PDF pair
+        // preserves the internal character order of English words, filenames and URLs.
+        var mixed = EmbeddedLeftToRightRun.Replace(value, match => "\u202A" + match.Value + "\u202C");
+        return "\u202B" + mixed + "\u202C";
+    }
+
+    /// <summary>
+    /// One-time upgrade migration: open v1.2.2 in English by default, then retain any
+    /// language the user selects from that point onward.
+    /// </summary>
+    public static void EnsureEnglishDefaultForV122()
+    {
+        if (Preferences.Default.Get(EnglishDefaultMigrationKey, false))
+            return;
+
+        var previousLanguage = Preferences.Default.Get(LanguagePreferenceKey, "en");
+        Preferences.Default.Set(LanguagePreferenceKey, "en");
+        Preferences.Default.Set(EnglishDefaultMigrationKey, true);
+
+        // If an installed build was using Persian, queue one wallpaper regeneration so
+        // the old generated lock-screen bitmap can pick up the corrected English default.
+        if (string.Equals(previousLanguage, "fa", StringComparison.OrdinalIgnoreCase)
+            && Preferences.Default.Get("locksy-auto-apply", true))
+        {
+            Preferences.Default.Set("locksy-auto-apply-pending", true);
+        }
     }
 
     public static void SetLanguage(string languageCode)

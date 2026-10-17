@@ -188,25 +188,44 @@ public partial class MainPage : ContentPage
         PageContent.Opacity = 1;
     }
 
+    private static string LocalizedDisplayText(string? value) =>
+        LocalizationService.PrepareTextForDisplay(LocalizationService.Translate(value));
+
+    private void SetModalMessageText(string? value)
+    {
+        ModalMessage.FlowDirection = LocalizationService.CurrentFlowDirection;
+        ModalMessage.HorizontalTextAlignment = TextAlignment.Justify;
+        ModalMessage.LineBreakMode = LineBreakMode.WordWrap;
+        ModalMessage.Text = LocalizedDisplayText(value);
+    }
+
     private void ApplyLocalization()
     {
         FlowDirection = LocalizationService.CurrentFlowDirection;
         PageContent.FlowDirection = FlowDirection;
         ModalOverlay.FlowDirection = FlowDirection;
+        ModalSectionLabel.FlowDirection = FlowDirection;
+        ModalTitle.FlowDirection = FlowDirection;
+        ModalMessage.FlowDirection = FlowDirection;
+        ModalMessage.HorizontalTextAlignment = TextAlignment.Justify;
+        ModalMessage.LineBreakMode = LineBreakMode.WordWrap;
+        _viewModel.RefreshLocalizedTaskTitles();
 
-        HeaderTaglineLabel.Text = LocalizationService.Translate("Keep what matters in sight.");
-        NewTaskEntry.Placeholder = LocalizationService.Translate("Add a task...");
-        AddTaskButton.Text = LocalizationService.Translate("＋ Add");
-        EmptyListTitleLabel.Text = LocalizationService.Translate("Your list is clear");
-        EmptyListDescriptionLabel.Text = LocalizationService.Translate("Add your first task. It will be saved on this device.");
-        ClockLayoutCaption.Text = LocalizationService.Translate("Clock layout");
-        AutoApplyCaption.Text = LocalizationService.Translate("Auto update");
-        AutoApplyDescriptionLabel.Text = LocalizationService.Translate("Apply edits when app is in background");
-        ClearCompletedButton.Text = LocalizationService.Translate("Clear completed");
+        HeaderTaglineLabel.FlowDirection = FlowDirection;
+        NewTaskEntry.FlowDirection = FlowDirection;
+        HeaderTaglineLabel.Text = LocalizedDisplayText("Keep what matters in sight.");
+        NewTaskEntry.Placeholder = LocalizedDisplayText("Add a task...");
+        AddTaskButton.Text = LocalizedDisplayText("＋ Add");
+        EmptyListTitleLabel.Text = LocalizedDisplayText("Your list is clear");
+        EmptyListDescriptionLabel.Text = LocalizedDisplayText("Add your first task. It will be saved on this device.");
+        ClockLayoutCaption.Text = LocalizedDisplayText("Clock layout");
+        AutoApplyCaption.Text = LocalizedDisplayText("Auto update");
+        AutoApplyDescriptionLabel.Text = LocalizedDisplayText("Apply edits when app is in background");
+        ClearCompletedButton.Text = LocalizedDisplayText("Clear completed");
         ApplyBusyLabelRefresh();
-        FirstEightLabel.Text = LocalizationService.Translate("First 8 tasks on wallpaper");
-        DragGhostTitle.Text = LocalizationService.Translate("Moving task");
-        ModalSectionLabel.Text = LocalizationService.Translate("LOCKSY  ·  QUICK ACTION");
+        FirstEightLabel.Text = LocalizedDisplayText("First 8 tasks on wallpaper");
+        DragGhostTitle.Text = LocalizedDisplayText("Moving task");
+        ModalSectionLabel.Text = LocalizedDisplayText("LOCKSY  ·  QUICK ACTION");
         SemanticProperties.SetDescription(SettingsButton, LocalizationService.Translate("Open application settings"));
         SemanticProperties.SetDescription(NewTaskSettingsButton, LocalizationService.Translate("New reminder settings"));
         SemanticProperties.SetDescription(AutoApplySwitch, LocalizationService.Translate("Automatically refresh wallpaper after task edits"));
@@ -221,7 +240,7 @@ public partial class MainPage : ContentPage
     private void ApplyBusyLabelRefresh()
     {
         ApplyButton.Text = _isApplying ? string.Empty : LocalizationService.Translate("Apply wallpaper");
-        ApplyingLabel.Text = LocalizationService.Translate("Applying…");
+        ApplyingLabel.Text = LocalizedDisplayText("Applying…");
     }
 
     private async void SettingsButton_Clicked(object? sender, EventArgs e)
@@ -389,13 +408,15 @@ public partial class MainPage : ContentPage
             _ => "settings"
         };
 
-        ModalSectionLabel.Text = LocalizationService.Translate("LOCKSY · SETTINGS");
+        ModalSectionLabel.Text = LocalizedDisplayText("LOCKSY · SETTINGS");
         // Theme changes happen while this popup remains open, so refresh its manually
         // assigned surface colors as well as the dynamically-themed page beneath it.
         ModalCard.BackgroundColor = PopupColor("#F0F2F8", "#252736");
         ModalCard.Stroke = new SolidColorBrush(PopupColor("#CDD5E2", "#383A4D"));
-        ModalTitle.Text = LocalizationService.Translate(title);
-        ModalMessage.Text = LocalizationService.Translate(message);
+        ModalTitle.FlowDirection = LocalizationService.CurrentFlowDirection;
+        ModalSectionLabel.FlowDirection = LocalizationService.CurrentFlowDirection;
+        ModalTitle.Text = LocalizedDisplayText(title);
+        SetModalMessageText(message);
         ModalMessage.TextColor = PopupColor("#6F7589", "#ADB2C8");
         ModalMessage.IsVisible = !string.IsNullOrWhiteSpace(message);
 
@@ -434,63 +455,198 @@ public partial class MainPage : ContentPage
 
     private void AddThemeToggleRow()
     {
-        var themeSwitch = new Switch
-        {
-            IsToggled = ThemeService.IsDarkMode(),
-            OnColor = Color.FromArgb("#8875E8"),
-            ThumbColor = Colors.White,
-            VerticalOptions = LayoutOptions.Center,
-            HorizontalOptions = LayoutOptions.End
-        };
-        themeSwitch.Toggled += ThemeToggle_Toggled;
-        SemanticProperties.SetDescription(themeSwitch, LocalizationService.Translate("Switch between dark and light theme"));
+        var isDark = ThemeService.IsDarkMode();
+        const double switchWidth = 94;
+        const double switchHeight = 50;
+        const double thumbSize = 42;
+        const double thumbTravel = switchWidth - thumbSize - 8;
 
-        var labels = new VerticalStackLayout { Spacing = 3, VerticalOptions = LayoutOptions.Center };
+        var themeSwitch = new Grid
+        {
+            WidthRequest = switchWidth,
+            HeightRequest = switchHeight,
+            FlowDirection = Microsoft.Maui.FlowDirection.LeftToRight,
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.Center,
+            AutomationId = "LocksyThemeToggle"
+        };
+
+        var track = new Border
+        {
+            BackgroundColor = isDark ? Color.FromArgb("#29243D") : Color.FromArgb("#E8E1FF"),
+            Stroke = new SolidColorBrush(isDark ? Color.FromArgb("#66568F") : Color.FromArgb("#C6B8FF")),
+            StrokeThickness = 1.25,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(switchHeight / 2) }
+        };
+        themeSwitch.Add(track);
+
+        // The inactive glyphs sit at the ends of the track; the moving violet thumb
+        // carries a high-contrast white version of the selected sun/moon symbol.
+        themeSwitch.Add(new Image
+        {
+            Source = "theme_sun.svg",
+            WidthRequest = 20,
+            HeightRequest = 20,
+            Aspect = Aspect.AspectFit,
+            HorizontalOptions = LayoutOptions.Start,
+            VerticalOptions = LayoutOptions.Center,
+            Margin = new Thickness(14, 0, 0, 0),
+            Opacity = isDark ? 0.92 : 0.10,
+            InputTransparent = true
+        });
+        themeSwitch.Add(new Image
+        {
+            Source = "theme_moon.svg",
+            WidthRequest = 20,
+            HeightRequest = 20,
+            Aspect = Aspect.AspectFit,
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.Center,
+            Margin = new Thickness(0, 0, 14, 0),
+            Opacity = isDark ? 0.10 : 0.92,
+            InputTransparent = true
+        });
+
+        var activeGlyph = new Image
+        {
+            Source = isDark ? "theme_moon_active.svg" : "theme_sun_active.svg",
+            WidthRequest = 23,
+            HeightRequest = 23,
+            Aspect = Aspect.AspectFit,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+            InputTransparent = true
+        };
+        var thumb = new Border
+        {
+            WidthRequest = thumbSize,
+            HeightRequest = thumbSize,
+            Margin = new Thickness(4, 0),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 1),
+                GradientStops =
+                {
+                    new GradientStop(Color.FromArgb("#A18CFF"), 0f),
+                    new GradientStop(Color.FromArgb("#7962E8"), 1f)
+                }
+            },
+            Stroke = new SolidColorBrush(Color.FromArgb("#C3B6FF")),
+            StrokeThickness = 0.8,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(thumbSize / 2) },
+            Shadow = new Shadow
+            {
+                Brush = new SolidColorBrush(Color.FromArgb("#6551C7")),
+                Offset = new Point(0, 3),
+                Radius = 6,
+                Opacity = 0.42f
+            },
+            HorizontalOptions = LayoutOptions.Start,
+            VerticalOptions = LayoutOptions.Center,
+            TranslationX = isDark ? thumbTravel : 0,
+            Content = activeGlyph,
+            ZIndex = 2
+        };
+        themeSwitch.Add(thumb);
+        SemanticProperties.SetDescription(themeSwitch, LocalizedDisplayText("Switch between dark and light theme"));
+        AutomationProperties.SetName(themeSwitch, LocalizedDisplayText("Theme"));
+
+        var labels = new VerticalStackLayout
+        {
+            Spacing = 3,
+            VerticalOptions = LayoutOptions.Center,
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        };
         labels.Children.Add(new Label
         {
-            Text = LocalizationService.Translate("Theme"),
-            FontSize = 14,
+            Text = LocalizedDisplayText("Theme"),
+            FontSize = 15,
             FontAttributes = FontAttributes.Bold,
-            TextColor = PopupColor("#3F4559", "#E5E7F5")
+            FlowDirection = LocalizationService.CurrentFlowDirection,
+            TextColor = PopupColor("#363247", "#F0EDFF")
         });
         labels.Children.Add(new Label
         {
-            Text = LocalizationService.Translate(ThemeService.IsDarkMode() ? "Dark theme" : "Light theme"),
-            FontSize = 11,
-            TextColor = PopupColor("#7E8599", "#9FA5BC")
+            Text = LocalizedDisplayText(isDark ? "Dark theme" : "Light theme"),
+            FontSize = 11.5,
+            FlowDirection = LocalizationService.CurrentFlowDirection,
+            TextColor = PopupColor("#756E8E", "#B2AACB")
         });
 
         var row = new Grid
         {
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
-            ColumnSpacing = 12,
-            Padding = new Thickness(14, 9),
-            MinimumHeightRequest = 62,
+            ColumnSpacing = 14,
+            Padding = new Thickness(16, 12),
+            MinimumHeightRequest = 76,
             FlowDirection = LocalizationService.CurrentFlowDirection
         };
         row.Add(labels, 0, 0);
         row.Add(themeSwitch, 1, 0);
 
-        ModalBody.Children.Add(new Border
+        var rowBorder = new Border
         {
-            BackgroundColor = PopupColor("#E6E0FF", "#332D49"),
-            Stroke = new SolidColorBrush(PopupColor("#AA9AF2", "#62538D")),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 1),
+                GradientStops =
+                {
+                    new GradientStop(PopupColor("#F6F2FF", "#282438"), 0f),
+                    new GradientStop(PopupColor("#EAE4FF", "#211E31"), 1f)
+                }
+            },
+            Stroke = new SolidColorBrush(PopupColor("#D0C4FF", "#564879")),
             StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(15) },
-            Shadow = CreateNeumorphicShadow(0.32f),
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(19) },
+            Shadow = CreateNeumorphicShadow(0.36f),
             Content = row
-        });
+        };
+        ModalBody.Children.Add(rowBorder);
+
+        // Tapping either the switch or its whole settings row toggles the theme.
+        // The guard inside ToggleThemeInlineAsync prevents double activation if a tap bubbles.
+        var switchTap = new TapGestureRecognizer();
+        switchTap.Tapped += async (_, _) =>
+            await ToggleThemeInlineAsync(themeSwitch, thumb, activeGlyph, track, !ThemeService.IsDarkMode(), thumbTravel);
+        themeSwitch.GestureRecognizers.Add(switchTap);
+        var rowTap = new TapGestureRecognizer();
+        rowTap.Tapped += async (_, _) =>
+            await ToggleThemeInlineAsync(themeSwitch, thumb, activeGlyph, track, !ThemeService.IsDarkMode(), thumbTravel);
+        rowBorder.GestureRecognizers.Add(rowTap);
     }
 
-    private async void ThemeToggle_Toggled(object? sender, ToggledEventArgs e)
+    private async Task ToggleThemeInlineAsync(
+        Grid switchSurface,
+        Border thumb,
+        Image activeGlyph,
+        Border track,
+        bool isDark,
+        double thumbTravel)
     {
-        if (_settingsTransitionRunning || _popupCompletionSource is null)
+        if (_settingsTransitionRunning || _popupCompletionSource is null || !switchSurface.IsEnabled)
             return;
 
-        ApplyThemePreference(e.Value ? ThemePreference.Dark : ThemePreference.Light);
-        // Re-render the same Settings page in-place so all hand-styled controls pick up
-        // the newly selected palette without navigating to a separate Theme screen.
-        await NavigateSettingsPageAsync("Settings", animate: true);
+        switchSurface.IsEnabled = false;
+        try
+        {
+            track.BackgroundColor = isDark ? Color.FromArgb("#29243D") : Color.FromArgb("#E8E1FF");
+            track.Stroke = new SolidColorBrush(isDark ? Color.FromArgb("#66568F") : Color.FromArgb("#C6B8FF"));
+            activeGlyph.Source = isDark ? "theme_moon_active.svg" : "theme_sun_active.svg";
+            await Task.WhenAll(
+                thumb.TranslateTo(isDark ? thumbTravel : 0, 0, 210, Easing.CubicOut),
+                thumb.ScaleTo(0.94, 90, Easing.CubicIn));
+            await thumb.ScaleTo(1, 100, Easing.SpringOut);
+
+            ApplyThemePreference(isDark ? ThemePreference.Dark : ThemePreference.Light);
+            // Recreate theme-sensitive surfaces in-place; the modal stays open.
+            await NavigateSettingsPageAsync("Settings", animate: false);
+        }
+        finally
+        {
+            switchSurface.IsEnabled = true;
+        }
     }
 
     private void RenderLanguageSettings()
@@ -504,6 +660,10 @@ public partial class MainPage : ContentPage
                     {
                         LocalizationService.SetLanguage("en");
                         ApplyLocalization();
+                        StatusLabel.Text = LocalizationService.Translate(AutoApplySwitch.IsToggled
+                            ? "Language updated."
+                            : "Language updated. Tap Apply wallpaper to refresh lock screen.");
+                        ScheduleAutoApply();
                     });
             }, isSelected: !isPersian);
         AddSettingsOption("فارسی", "Use the Persian right-to-left interface.", "فا",
@@ -514,6 +674,10 @@ public partial class MainPage : ContentPage
                     {
                         LocalizationService.SetLanguage("fa");
                         ApplyLocalization();
+                        StatusLabel.Text = LocalizationService.Translate(AutoApplySwitch.IsToggled
+                            ? "Language updated."
+                            : "Language updated. Tap Apply wallpaper to refresh lock screen.");
+                        ScheduleAutoApply();
                     });
             }, isSelected: isPersian);
         BuildSettingsFooter(isHome: false);
@@ -555,7 +719,7 @@ public partial class MainPage : ContentPage
             var error = ex.Message.Contains("25 MB", StringComparison.OrdinalIgnoreCase)
                 ? "Please select an image smaller than 25 MB."
                 : "The selected image could not be saved.";
-            ModalMessage.Text = LocalizationService.Translate(error);
+            SetModalMessageText(error);
             ModalMessage.TextColor = Color.FromArgb("#D45C72");
             ModalMessage.IsVisible = true;
         }
@@ -613,8 +777,8 @@ public partial class MainPage : ContentPage
         }
         catch
         {
-            ModalMessage.Text = LocalizationService.Translate("Could not open GitHub") + "\n" +
-                                LocalizationService.Translate("Please check your internet connection and try again.");
+            SetModalMessageText(LocalizationService.Translate("Could not open GitHub") + "\n" +
+                                LocalizationService.Translate("Please check your internet connection and try again."));
             ModalMessage.TextColor = Color.FromArgb("#D45C72");
             ModalMessage.IsVisible = true;
         }
@@ -660,17 +824,20 @@ public partial class MainPage : ContentPage
 
         var titleLabel = new Label
         {
-            Text = LocalizationService.Translate(title),
+            Text = LocalizedDisplayText(title),
             FontSize = 13,
             FontAttributes = FontAttributes.Bold,
+            FlowDirection = LocalizationService.CurrentFlowDirection,
             TextColor = PopupColor("#3F4559", "#E5E7F5"),
             LineBreakMode = LineBreakMode.WordWrap
         };
         var subtitleLabel = new Label
         {
-            Text = LocalizationService.Translate(subtitle),
+            Text = LocalizedDisplayText(subtitle),
             FontSize = 10.5,
+            FlowDirection = LocalizationService.CurrentFlowDirection,
             TextColor = PopupColor("#7E8599", "#9FA5BC"),
+            HorizontalTextAlignment = TextAlignment.Justify,
             LineBreakMode = LineBreakMode.WordWrap
         };
         var labels = new VerticalStackLayout { Spacing = 3, VerticalOptions = LayoutOptions.Center };
@@ -1104,13 +1271,13 @@ public partial class MainPage : ContentPage
         {
             if (alarmSwitch.IsToggled && (datePicker.Date.Date + timePicker.Time) <= DateTime.Now)
             {
-                ModalMessage.Text = LocalizationService.Translate("Choose a future date and time for the alarm.");
+                SetModalMessageText("Choose a future date and time for the alarm.");
                 ModalMessage.IsVisible = true;
                 return false;
             }
             if (adding && string.IsNullOrWhiteSpace(draftTitleEntry.Text))
             {
-                ModalMessage.Text = LocalizationService.Translate("Enter a reminder title before adding it.");
+                SetModalMessageText("Enter a reminder title before adding it.");
                 ModalMessage.IsVisible = true;
                 return false;
             }
@@ -1482,7 +1649,7 @@ public partial class MainPage : ContentPage
                     var candidate = DateTime.SpecifyKind(datePicker.Date.Date + timePicker.Time, DateTimeKind.Local);
                     if (candidate <= DateTime.Now)
                     {
-                        ModalMessage.Text = LocalizationService.Translate("The alarm time must be later than the current time.");
+                        SetModalMessageText("The alarm time must be later than the current time.");
                         ModalMessage.TextColor = Color.FromArgb("#D45C72");
                         ModalMessage.IsVisible = true;
                         return;
@@ -2501,7 +2668,7 @@ public partial class MainPage : ContentPage
     {
         ApplyButton.IsEnabled = !isBusy;
         ApplyButton.Text = isBusy ? string.Empty : LocalizationService.Translate("Apply wallpaper");
-        ApplyingLabel.Text = LocalizationService.Translate("Applying…");
+        ApplyingLabel.Text = LocalizedDisplayText("Applying…");
         ApplyBusyContent.IsVisible = isBusy;
         ApplySpinner.IsRunning = isBusy;
     }
@@ -2529,9 +2696,11 @@ public partial class MainPage : ContentPage
         ModalBodyScroll.TranslationX = reuseVisibleModal ? transitionStartX : 0;
         ModalButtons.TranslationX = reuseVisibleModal ? transitionStartX : 0;
         SetPopupHeaderVisualState(reuseVisibleModal ? 0 : 1, reuseVisibleModal ? transitionStartX : 0);
-        ModalSectionLabel.Text = LocalizationService.Translate("LOCKSY · QUICK ACTION");
-        ModalTitle.Text = LocalizationService.Translate(title);
-        ModalMessage.Text = LocalizationService.Translate(message);
+        ModalSectionLabel.Text = LocalizedDisplayText("LOCKSY · QUICK ACTION");
+        ModalTitle.FlowDirection = LocalizationService.CurrentFlowDirection;
+        ModalSectionLabel.FlowDirection = LocalizationService.CurrentFlowDirection;
+        ModalTitle.Text = LocalizedDisplayText(title);
+        SetModalMessageText(message);
         ModalMessage.TextColor = PopupColor("#6F7589", "#ADB2C8");
         ModalMessage.IsVisible = !string.IsNullOrWhiteSpace(message);
         var useOptionsIcon = string.Equals(icon, "options", StringComparison.OrdinalIgnoreCase);

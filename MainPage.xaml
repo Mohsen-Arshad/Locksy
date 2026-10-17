@@ -47,7 +47,7 @@
                          BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
                          BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
                          BorderWidth="1"
-                         CornerRadius="13"
+                         CornerRadius="12.8"
                          SemanticProperties.Description="Open application settings"
                          AutomationProperties.Name="Application settings">
                 <ImageButton.Shadow>
@@ -136,7 +136,7 @@
                     <Label x:Name="EmptyListDescriptionLabel" Text="Add your first task. It will be saved on this device."
                            FontSize="13"
                            TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}"
-                           HorizontalTextAlignment="Center" />
+                           HorizontalTextAlignment="Justify" />
                 </VerticalStackLayout>
             </CollectionView.EmptyView>
             <CollectionView.ItemTemplate>
@@ -182,11 +182,12 @@
                                      VerticalOptions="Center"
                                      AutomationProperties.Name="Selected reminder color" />
                             <Label Grid.Column="2" Grid.RowSpan="2"
-                                   Text="{Binding Title}"
+                                   Text="{Binding DisplayTitle}"
                                    TextDecorations="{Binding TitleDecorations}"
                                    FontSize="15"
                                    TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
                                    VerticalTextAlignment="Center"
+                                   HorizontalTextAlignment="Justify"
                                    LineBreakMode="WordWrap"
                                    HandlerChanged="TaskTitle_HandlerChanged">
                                 <Label.GestureRecognizers>
@@ -265,6 +266,7 @@
                     <Label x:Name="AutoApplyDescriptionLabel" Text="Apply edits when app is in background"
                            FontSize="12"
                            TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}"
+                           HorizontalTextAlignment="Justify"
                            VerticalTextAlignment="Center" />
                     <Grid Grid.Column="1" WidthRequest="48" HeightRequest="30" VerticalOptions="Center">
                         <Border x:Name="AutoApplyTrack"
@@ -496,6 +498,7 @@
                            FontSize="13"
                            LineHeight="1.25"
                            LineBreakMode="WordWrap"
+                           HorizontalTextAlignment="Justify"
                            TextColor="{AppThemeBinding Light=#6F7589, Dark=#ADB2C8}" />
                     <ScrollView x:Name="ModalBodyScroll"
                                 Grid.Row="2"
