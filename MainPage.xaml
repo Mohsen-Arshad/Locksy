@@ -16,10 +16,30 @@
 
         <!-- Brand header and manual/system theme selector -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-            <Image Source="locksy_app_logo.png"
-                   WidthRequest="54"
-                   HeightRequest="54"
-                   VerticalOptions="Center" />
+            <!-- Keep settings directly under the Locksy mark, separate from the theme control. -->
+            <VerticalStackLayout Grid.Column="0"
+                                 Spacing="2"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center">
+                <Image Source="locksy_app_logo.png"
+                       WidthRequest="54"
+                       HeightRequest="54"
+                       VerticalOptions="Center"
+                       HorizontalOptions="Center" />
+                <ImageButton x:Name="SettingsButton"
+                             Source="settings_gear.svg"
+                             Clicked="SettingsButton_Clicked"
+                             WidthRequest="34"
+                             HeightRequest="28"
+                             Padding="6"
+                             Aspect="AspectFit"
+                             BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                             BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
+                             BorderWidth="1"
+                             CornerRadius="10"
+                             SemanticProperties.Description="Open application settings"
+                             AutomationProperties.Name="Application settings" />
+            </VerticalStackLayout>
             <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                 <Label Text="Locksy"
                        FontSize="29"
@@ -97,19 +117,6 @@
                     </Border>
                 </Grid>
             </Border>
-            <Button x:Name="SettingsButton"
-                    Text="⚙"
-                    Clicked="SettingsButton_Clicked"
-                    WidthRequest="38"
-                    HeightRequest="34"
-                    Padding="0"
-                    FontSize="20"
-                    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
-                    TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
-                    BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
-                    BorderWidth="1"
-                    CornerRadius="12"
-                    SemanticProperties.Description="Open application settings" />
             </VerticalStackLayout>
         </Grid>
 

@@ -237,7 +237,7 @@ public partial class MainPage : ContentPage
             new[] { "Language", "Background image", "About" },
             cancelLabel: "Close",
             icons: new[] { "Aa", "▧", "!" },
-            popupIcon: "⚙");
+            popupIcon: "settings");
 
         switch (selected)
         {
@@ -2112,7 +2112,8 @@ public partial class MainPage : ContentPage
         var useOptionsIcon = string.Equals(icon, "options", StringComparison.OrdinalIgnoreCase);
         var useAlarmIcon = string.Equals(icon, "alarm", StringComparison.OrdinalIgnoreCase)
             || icon is "◷" or "⏰";
-        var useVectorIcon = useOptionsIcon || useAlarmIcon;
+        var useSettingsIcon = string.Equals(icon, "settings", StringComparison.OrdinalIgnoreCase);
+        var useVectorIcon = useOptionsIcon || useAlarmIcon || useSettingsIcon;
         ModalIconImage.IsVisible = useVectorIcon;
         ModalIconLabel.IsVisible = !useVectorIcon;
         if (useOptionsIcon)
@@ -2126,6 +2127,12 @@ public partial class MainPage : ContentPage
             ModalIconImage.Source = ImageSource.FromFile("locksy_alarm_icon.svg");
             ModalIconImage.WidthRequest = 23;
             ModalIconImage.HeightRequest = 23;
+        }
+        else if (useSettingsIcon)
+        {
+            ModalIconImage.Source = ImageSource.FromFile("settings_gear.svg");
+            ModalIconImage.WidthRequest = 24;
+            ModalIconImage.HeightRequest = 24;
         }
         else
         {

@@ -10,6 +10,8 @@
     <Nullable>enable</Nullable>
     <ApplicationTitle>Locksy</ApplicationTitle>
     <ApplicationId>com.mohsen.locksy</ApplicationId>
+    <ApplicationDisplayVersion>1.1.2</ApplicationDisplayVersion>
+    <ApplicationVersion>5</ApplicationVersion>
     <ApplicationDisplayVersion>1.1.1</ApplicationDisplayVersion>
     <ApplicationVersion>4</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
