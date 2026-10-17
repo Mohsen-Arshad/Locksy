@@ -60,6 +60,7 @@ public static class LocalizationService
         ["View the Locksy source code on GitHub."] = "کد منبع Locksy را در گیت‌هاب ببین.",
         ["Open GitHub repository"] = "بازکردن مخزن گیت‌هاب",
         ["Back to settings"] = "بازگشت به تنظیمات",
+        ["Back to task options"] = "بازگشت به گزینه‌های کار",
         ["Settings"] = "تنظیمات",
         ["Theme"] = "پوسته",
         ["Manage your app theme, language, custom wallpaper and app information."] = "پوسته، زبان، تصویر پس‌زمینه و اطلاعات برنامه را مدیریت کن.",
