@@ -56,6 +56,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
         NewTaskText = string.Empty;
     }
 
+    /// <summary>
+    /// Creates a reminder with preconfigured color and alarm values before it enters
+    /// the observable collection, avoiding an intermediate default-color/default-alarm state.
+    /// </summary>
+    public TodoItem? AddTaskWithSettings(
+        string title,
+        string colorKey,
+        string paletteKey,
+        bool reminderEnabled,
+        DateTime? reminderAt)
+    {
+        var normalizedTitle = (title ?? string.Empty).Trim();
+        if (normalizedTitle.Length == 0 ||
+            !TodoPalette.IsValidKey(colorKey) ||
+            !TodoPalette.IsValidPaletteKey(paletteKey))
+            return null;
+
+        var hasValidReminder = reminderEnabled && reminderAt.HasValue && reminderAt.Value > DateTime.Now;
+        var task = new TodoItem
+        {
+            Title = normalizedTitle,
+            ColorKey = colorKey,
+            ColorPaletteKey = paletteKey,
+            ReminderAt = hasValidReminder ? reminderAt : null,
+            IsReminderEnabled = hasValidReminder
+        };
+
+        Tasks.Add(task);
+        NewTaskText = string.Empty;
+        return task;
+    }
+
     public void EditTask(TodoItem task, string newTitle)
     {
         var title = newTitle.Trim();

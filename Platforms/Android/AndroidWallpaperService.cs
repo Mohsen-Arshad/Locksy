@@ -376,8 +376,10 @@ public sealed class AndroidWallpaperService : IWallpaperService
 
             // Every row reserves the same small clock symbol. Upcoming enabled reminders
             // are vivid; unset, expired, completed, or disabled reminders stay smoky.
-            var clockRadius = Math.Clamp(bodySize * 0.19f, 7f, 12f);
-            var clockCenterX = badgeCenterX + badgeRadius + clockRadius + Math.Max(4f, bodySize * 0.10f);
+            // Make the alarm clock visibly readable on phone-sized lock screens.
+            // Keep equal geometry for enabled and disabled reminders; only tint changes.
+            var clockRadius = Math.Clamp(bodySize * 0.25f, 10f, 16f);
+            var clockCenterX = badgeCenterX + badgeRadius + clockRadius + Math.Max(5f, bodySize * 0.12f);
             clockCenterX = Math.Min(clockCenterX, textX - clockRadius - 5f);
             var clockColor = row.Task.IsReminderActive
                 ? (dark ? AndroidColor.Rgb(197, 176, 255) : AndroidColor.Rgb(112, 76, 211))
@@ -385,7 +387,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
             using (var clockPaint = new AndroidPaint { AntiAlias = true, Color = clockColor })
             {
                 clockPaint.SetStyle(AndroidPaint.Style.Stroke);
-                clockPaint.StrokeWidth = row.Task.IsReminderActive ? Math.Max(2f, bodySize * 0.045f) : Math.Max(1.5f, bodySize * 0.035f);
+                clockPaint.StrokeWidth = row.Task.IsReminderActive ? Math.Max(2.8f, bodySize * 0.060f) : Math.Max(2.2f, bodySize * 0.050f);
                 canvas.DrawCircle(clockCenterX, centerY, clockRadius, clockPaint);
                 canvas.DrawLine(clockCenterX, centerY, clockCenterX, centerY - clockRadius * 0.48f, clockPaint);
                 canvas.DrawLine(clockCenterX, centerY, clockCenterX + clockRadius * 0.36f, centerY + clockRadius * 0.20f, clockPaint);
