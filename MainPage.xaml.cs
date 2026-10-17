@@ -1921,8 +1921,8 @@ public partial class MainPage : ContentPage
         else if (useAlarmIcon)
         {
             ModalIconImage.Source = ImageSource.FromFile("locksy_alarm_icon.svg");
-            ModalIconImage.WidthRequest = 29;
-            ModalIconImage.HeightRequest = 29;
+            ModalIconImage.WidthRequest = 23;
+            ModalIconImage.HeightRequest = 23;
         }
         else
         {
@@ -2153,7 +2153,7 @@ public partial class MainPage : ContentPage
         var vectorIconSource = TaskActionIconSource(icon);
         if (vectorIconSource is not null)
         {
-            var iconSize = string.Equals(icon, "alarm", StringComparison.OrdinalIgnoreCase) ? 32d : 21d;
+            var iconSize = 21d; // Keep the alarm glyph visually aligned with edit, palette, and delete icons.
             iconContent = new Image
             {
                 Source = ImageSource.FromFile(vectorIconSource),
