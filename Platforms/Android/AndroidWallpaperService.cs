@@ -1,6 +1,11 @@
 using Android.App;
 using Android.Graphics;
 using AndroidColor = Android.Graphics.Color;
+using AndroidStaticLayout = Android.Text.StaticLayout;
+using AndroidText = Android.Text;
+using AndroidTextPaint = Android.Text.TextPaint;
+using AndroidTextDirectionHeuristics = Android.Text.TextDirectionHeuristics;
+using AndroidTextLayout = Android.Text.Layout;
 using AndroidPaint = Android.Graphics.Paint;
 using Android.OS;
 using AndroidX.Core.Content;
@@ -351,14 +356,58 @@ public sealed class AndroidWallpaperService : IWallpaperService
 
     private static void DrawLocalizedText(Canvas canvas, string text, float x, float baseline, AndroidPaint paint)
     {
-        if (LocalizationService.IsPersian && !string.IsNullOrEmpty(text))
-        {
-            // DrawTextRun enables Android's contextual shaping for Persian/Arabic glyphs.
-            canvas.DrawTextRun(text, 0, text.Length, 0, text.Length, x, baseline, true, paint);
-            return;
-        }
+        if (string.IsNullOrEmpty(text)) return;
 
-        canvas.DrawText(text, x, baseline, paint);
+        // StaticLayout runs Android's full bidirectional algorithm. For a Persian
+        // paragraph, force RTL as the paragraph base direction while preserving Latin
+        // runs (Locksy, URLs, acronyms, numbers) as natural left-to-right islands.
+        using var textPaint = new AndroidTextPaint
+        {
+            AntiAlias = true,
+            Color = paint.Color,
+            TextSize = paint.TextSize
+        };
+        textPaint.SetTypeface(paint.Typeface);
+        var displayText = LocalizationService.PrepareTextForDisplay(text);
+        var layoutWidth = Math.Max(1, (int)Math.Ceiling(paint.MeasureText(text) + paint.TextSize * 2f + 12f));
+        using var layout = CreateTextLayout(displayText, textPaint, layoutWidth, 1f, justify: false);
+        var layoutX = LocalizationService.IsPersian ? x - layoutWidth : x;
+        var saveCount = canvas.Save();
+        try
+        {
+            canvas.Translate(layoutX, baseline - layout.GetLineBaseline(0));
+            layout.Draw(canvas);
+        }
+        finally
+        {
+            canvas.RestoreToCount(saveCount);
+        }
+    }
+
+    private static AndroidStaticLayout CreateTextLayout(
+        string text,
+        AndroidTextPaint paint,
+        int width,
+        float lineSpacingMultiplier,
+        bool justify)
+    {
+        var safeText = text ?? string.Empty;
+        var builder = AndroidStaticLayout.Builder.Obtain(safeText, 0, safeText.Length, paint, Math.Max(1, width))
+            .SetAlignment(AndroidTextLayout.Alignment.AlignNormal)
+            .SetTextDirection(LocalizationService.IsPersian
+                ? AndroidTextDirectionHeuristics.Rtl!
+                : AndroidTextDirectionHeuristics.Ltr!)
+            .SetIncludePad(false)
+            .SetLineSpacing(0f, lineSpacingMultiplier)
+            .SetBreakStrategy(AndroidText.BreakStrategy.HighQuality)
+            .SetHyphenationFrequency(AndroidText.HyphenationFrequency.None);
+
+        // Inter-word justification is supported from Android 8 (API 26). Bidi-aware
+        // shaping and wrapping remain active on the minimum supported API (24) regardless.
+        if (justify && (int)Build.VERSION.SdkInt >= 26)
+            builder.SetJustificationMode(AndroidText.JustificationMode.InterWord);
+
+        return builder.Build();
     }
 
     private static void DrawTaskGroup(
@@ -397,15 +446,23 @@ public sealed class AndroidWallpaperService : IWallpaperService
         List<PreparedRow> rows = new();
         float totalHeight = 0f;
 
-        // Preserve the original LockTodo font sizing unless this selected region cannot fit it.
+        // Preserve the original font sizing unless the selected region cannot fit.
+        // Dispose layouts from rejected font-size attempts to avoid accumulating JNI peers.
         for (var attempt = 0; attempt < 32; attempt++)
         {
-            rows = PrepareRows(tasks, bodySize, maxTextWidth, height, baseFontSize);
-            var rowsHeight = rows.Sum(row => row.Height);
-            totalHeight = rowsHeight + Math.Max(0, rows.Count - 1) * gap;
-            if (totalHeight + headingHeight <= availableHeight || bodySize <= 12f) break;
+            var candidateRows = PrepareRows(tasks, bodySize, maxTextWidth, height, baseFontSize);
+            var rowsHeight = candidateRows.Sum(row => row.Height);
+            var candidateTotalHeight = rowsHeight + Math.Max(0, candidateRows.Count - 1) * gap;
+            if (candidateTotalHeight + headingHeight <= availableHeight || bodySize <= 12f || attempt == 31)
+            {
+                rows = candidateRows;
+                totalHeight = candidateTotalHeight;
+                break;
+            }
+
+            DisposeRows(candidateRows);
             bodySize *= 0.94f;
-            gap = Math.Min(baseGap, Math.Max(4f, (availableHeight - rowsHeight) / Math.Max(1, rows.Count - 1)));
+            gap = Math.Min(baseGap, Math.Max(4f, (availableHeight - rowsHeight) / Math.Max(1, candidateRows.Count - 1)));
         }
 
         if (totalHeight + headingHeight > availableHeight)
@@ -414,6 +471,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
             while (totalHeight + headingHeight > availableHeight && bodySize > 9f)
             {
                 bodySize *= 0.92f;
+                DisposeRows(rows);
                 rows = PrepareRows(tasks, bodySize, maxTextWidth, height, baseFontSize);
                 totalHeight = rows.Sum(row => row.Height) + Math.Max(0, rows.Count - 1) * gap;
             }
@@ -435,107 +493,106 @@ public sealed class AndroidWallpaperService : IWallpaperService
 
         var y = contentTop + headingHeight;
         var radius = Math.Clamp(width * 0.035f, 22f, 46f);
-        for (var i = 0; i < rows.Count; i++)
+        try
         {
-            var row = rows[i];
-            if (y + row.Height > regionBottom + 1f && i > 0) break;
-            var cardBottom = Math.Min(regionBottom, y + row.Height);
-            // A task keeps its chosen palette variant independently of app appearance.
-            // The default "No color" option intentionally skips the fill so the wallpaper
-            // remains visible through the task card (100% transparent background).
-            if (row.Task.ColorKey != TodoPalette.NoColorKey)
+            for (var i = 0; i < rows.Count; i++)
             {
-                var paletteColor = AndroidColor.ParseColor(
-                    TodoPalette.GetHex(row.Task.ColorKey, row.Task.ColorPaletteKey));
-                var background = AndroidColor.Argb(255, paletteColor.R, paletteColor.G, paletteColor.B);
-                using var cardPaint = new AndroidPaint { AntiAlias = true, Color = background };
-                canvas.DrawRoundRect(margin, y, margin + cardWidth, cardBottom, radius, radius, cardPaint);
-            }
-
-            using (var stroke = new AndroidPaint
-            {
-                AntiAlias = true,
-                Color = dark ? AndroidColor.Argb(82, 220, 202, 255) : AndroidColor.Argb(70, 70, 90, 120)
-            })
-            {
-                stroke.SetStyle(AndroidPaint.Style.Stroke);
-                stroke.StrokeWidth = Math.Max(1f, width / 800f);
-                canvas.DrawRoundRect(margin, y, margin + cardWidth, cardBottom, radius, radius, stroke);
-            }
-
-            // The task number sits in its own warm-ivory badge, above every custom row tint.
-            // This prevents strong background colors from visually swallowing the number.
-            var centerY = y + row.Height / 2f;
-            var badgeCenterX = isPersian
-                ? margin + cardWidth * 0.925f
-                : margin + cardWidth * 0.075f;
-            var badgeRadius = Math.Clamp(bodySize * 0.72f, 18f, 31f);
-            using (var badgePaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(255, 243, 220) })
-                canvas.DrawCircle(badgeCenterX, centerY, badgeRadius, badgePaint);
-
-            using var numberPaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(18, 17, 20) };
-            numberPaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Bold)!);
-            numberPaint.TextSize = Math.Clamp(bodySize * 0.62f, 15f, 27f);
-            numberPaint.TextAlign = AndroidPaint.Align.Center;
-            var numberText = row.Task.IsCompleted ? "✓" : LocalizationService.LocalizeDigits((startingNumber + i + 1).ToString("00", CultureInfo.InvariantCulture));
-            canvas.DrawText(numberText, badgeCenterX, centerY + numberPaint.TextSize * 0.34f, numberPaint);
-
-            // Reserve the clock's horizontal slot for every row so task titles remain
-            // aligned, but draw the symbol only when this task currently has an active,
-            // future reminder. Disabling/removing an alarm therefore removes the icon
-            // from the next generated wallpaper instead of leaving a smoky stale clock.
-            // Larger clock indicator: keep it legible on phone lock screens while
-            // the reserved text slot below continues to protect title alignment.
-            var clockBadgeRadius = badgeRadius;
-            var clockGap = Math.Max(5f, bodySize * 0.12f);
-            var clockCenterX = isPersian
-                ? badgeCenterX - badgeRadius - clockBadgeRadius - clockGap
-                : badgeCenterX + badgeRadius + clockBadgeRadius + clockGap;
-            clockCenterX = isPersian
-                ? Math.Max(clockCenterX, textX + maxTextWidth + clockBadgeRadius + 4f)
-                : Math.Min(clockCenterX, textX - clockBadgeRadius - 4f);
-            if (row.Task.IsReminderActive)
-            {
-                // Match the number badge exactly: same warm ivory fill and circular silhouette.
-                using (var clockBadgePaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(255, 243, 220) })
-                    canvas.DrawCircle(clockCenterX, centerY, clockBadgeRadius, clockBadgePaint);
-
-                var clockIconRadius = Math.Clamp(bodySize * 0.38f, 11f, 18f);
-                var clockColor = dark
-                    ? AndroidColor.Rgb(112, 76, 211)
-                    : AndroidColor.Rgb(112, 76, 211);
-                using var clockPaint = new AndroidPaint { AntiAlias = true, Color = clockColor };
-                clockPaint.SetStyle(AndroidPaint.Style.Stroke);
-                clockPaint.StrokeWidth = Math.Max(2.4f, bodySize * 0.052f);
-                canvas.DrawCircle(clockCenterX, centerY, clockIconRadius, clockPaint);
-                canvas.DrawLine(clockCenterX, centerY, clockCenterX, centerY - clockIconRadius * 0.50f, clockPaint);
-                canvas.DrawLine(clockCenterX, centerY, clockCenterX + clockIconRadius * 0.38f, centerY + clockIconRadius * 0.22f, clockPaint);
-            }
-
-            var foreground = AndroidColor.ParseColor(
-                TodoPalette.GetTextHex(row.Task.ColorKey, row.Task.ColorPaletteKey));
-            using var textPaint = new AndroidPaint { AntiAlias = true, Color = foreground };
-            textPaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Normal)!);
-            textPaint.TextSize = bodySize;
-            textPaint.TextAlign = isPersian ? AndroidPaint.Align.Right : AndroidPaint.Align.Left;
-            var lineHeight = bodySize * 1.22f;
-            var textHeight = row.Lines.Count * lineHeight;
-            var baseline = y + (row.Height - textHeight) / 2f + bodySize * 0.82f;
-            foreach (var line in row.Lines)
-            {
-                DrawLocalizedText(canvas, line, isPersian ? textX + maxTextWidth : textX, baseline, textPaint);
-                if (row.Task.IsCompleted)
+                var row = rows[i];
+                if (y + row.Height > regionBottom + 1f && i > 0) break;
+                var cardBottom = Math.Min(regionBottom, y + row.Height);
+                // The "No color" task deliberately shows the selected background image through its card.
+                if (row.Task.ColorKey != TodoPalette.NoColorKey)
                 {
-                    using var strike = new AndroidPaint { AntiAlias = true, Color = foreground };
-                    strike.StrokeWidth = Math.Max(1.5f, bodySize * 0.045f);
-                    var measured = textPaint.MeasureText(line);
-                    var strikeStart = isPersian ? textX + maxTextWidth - measured : textX;
-                    var strikeEnd = isPersian ? textX + maxTextWidth : Math.Min(textX + measured, textX + maxTextWidth);
-                    canvas.DrawLine(strikeStart, baseline - bodySize * 0.32f, strikeEnd, baseline - bodySize * 0.32f, strike);
+                    var paletteColor = AndroidColor.ParseColor(
+                        TodoPalette.GetHex(row.Task.ColorKey, row.Task.ColorPaletteKey));
+                    var background = AndroidColor.Argb(255, paletteColor.R, paletteColor.G, paletteColor.B);
+                    using var cardPaint = new AndroidPaint { AntiAlias = true, Color = background };
+                    canvas.DrawRoundRect(margin, y, margin + cardWidth, cardBottom, radius, radius, cardPaint);
                 }
-                baseline += lineHeight;
+
+                using (var stroke = new AndroidPaint
+                {
+                    AntiAlias = true,
+                    Color = dark ? AndroidColor.Argb(82, 220, 202, 255) : AndroidColor.Argb(70, 70, 90, 120)
+                })
+                {
+                    stroke.SetStyle(AndroidPaint.Style.Stroke);
+                    stroke.StrokeWidth = Math.Max(1f, width / 800f);
+                    canvas.DrawRoundRect(margin, y, margin + cardWidth, cardBottom, radius, radius, stroke);
+                }
+
+                var centerY = y + row.Height / 2f;
+                var badgeCenterX = isPersian
+                    ? margin + cardWidth * 0.925f
+                    : margin + cardWidth * 0.075f;
+                var badgeRadius = Math.Clamp(bodySize * 0.72f, 18f, 31f);
+                using (var badgePaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(255, 243, 220) })
+                    canvas.DrawCircle(badgeCenterX, centerY, badgeRadius, badgePaint);
+
+                using var numberPaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(18, 17, 20) };
+                numberPaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Bold)!);
+                numberPaint.TextSize = Math.Clamp(bodySize * 0.62f, 15f, 27f);
+                numberPaint.TextAlign = AndroidPaint.Align.Center;
+                var numberText = row.Task.IsCompleted ? "✓" : LocalizationService.LocalizeDigits((startingNumber + i + 1).ToString("00", CultureInfo.InvariantCulture));
+                canvas.DrawText(numberText, badgeCenterX, centerY + numberPaint.TextSize * 0.34f, numberPaint);
+
+                // Reserve an alarm slot for all rows so titles remain aligned.
+                var clockBadgeRadius = badgeRadius;
+                var clockGap = Math.Max(5f, bodySize * 0.12f);
+                var clockCenterX = isPersian
+                    ? badgeCenterX - badgeRadius - clockBadgeRadius - clockGap
+                    : badgeCenterX + badgeRadius + clockBadgeRadius + clockGap;
+                clockCenterX = isPersian
+                    ? Math.Max(clockCenterX, textX + maxTextWidth + clockBadgeRadius + 4f)
+                    : Math.Min(clockCenterX, textX - clockBadgeRadius - 4f);
+                if (row.Task.IsReminderActive)
+                {
+                    using (var clockBadgePaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(255, 243, 220) })
+                        canvas.DrawCircle(clockCenterX, centerY, clockBadgeRadius, clockBadgePaint);
+
+                    var clockIconRadius = Math.Clamp(bodySize * 0.38f, 11f, 18f);
+                    var clockColor = AndroidColor.Rgb(112, 76, 211);
+                    using var clockPaint = new AndroidPaint { AntiAlias = true, Color = clockColor };
+                    clockPaint.SetStyle(AndroidPaint.Style.Stroke);
+                    clockPaint.StrokeWidth = Math.Max(2.4f, bodySize * 0.052f);
+                    canvas.DrawCircle(clockCenterX, centerY, clockIconRadius, clockPaint);
+                    canvas.DrawLine(clockCenterX, centerY, clockCenterX, centerY - clockIconRadius * 0.50f, clockPaint);
+                    canvas.DrawLine(clockCenterX, centerY, clockCenterX + clockIconRadius * 0.38f, centerY + clockIconRadius * 0.22f, clockPaint);
+                }
+
+                var textTop = y + (row.Height - row.Layout.Height) / 2f;
+                var saveCount = canvas.Save();
+                try
+                {
+                    canvas.Translate(textX, textTop);
+                    row.Layout.Draw(canvas);
+
+                    if (row.Task.IsCompleted)
+                    {
+                        var foreground = AndroidColor.ParseColor(
+                            TodoPalette.GetTextHex(row.Task.ColorKey, row.Task.ColorPaletteKey));
+                        using var strike = new AndroidPaint { AntiAlias = true, Color = foreground };
+                        strike.StrokeWidth = Math.Max(1.5f, bodySize * 0.045f);
+                        for (var lineIndex = 0; lineIndex < row.Layout.LineCount; lineIndex++)
+                        {
+                            var lineLeft = row.Layout.GetLineLeft(lineIndex);
+                            var lineRight = row.Layout.GetLineRight(lineIndex);
+                            var strikeY = row.Layout.GetLineBaseline(lineIndex) - bodySize * 0.32f;
+                            canvas.DrawLine(lineLeft, strikeY, lineRight, strikeY, strike);
+                        }
+                    }
+                }
+                finally
+                {
+                    canvas.RestoreToCount(saveCount);
+                }
+
+                y = cardBottom + gap;
             }
-            y = cardBottom + gap;
+        }
+        finally
+        {
+            DisposeRows(rows);
         }
     }
 
@@ -547,72 +604,56 @@ public sealed class AndroidWallpaperService : IWallpaperService
         float baseFontSize)
     {
         var rows = new List<PreparedRow>(tasks.Count);
-        var lineHeight = fontSize * 1.22f;
         var baseCardHeight = Math.Clamp(height * 0.072f, 88f, 142f) * (fontSize / Math.Max(1f, baseFontSize));
         foreach (var task in tasks)
         {
-            using var measurePaint = new AndroidPaint { AntiAlias = true };
-            measurePaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Normal)!);
-            measurePaint.TextSize = fontSize;
-            var lines = WrapText(task.Title, measurePaint, maxTextWidth);
-            var textBlockHeight = lines.Count * lineHeight;
-            var cardHeight = Math.Max(baseCardHeight, textBlockHeight + fontSize * 0.82f);
-            rows.Add(new PreparedRow(task, lines, cardHeight));
+            var textColor = AndroidColor.ParseColor(TodoPalette.GetTextHex(task.ColorKey, task.ColorPaletteKey));
+            var textPaint = new AndroidTextPaint { AntiAlias = true, Color = textColor, TextSize = fontSize };
+            textPaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Normal)!);
+            AndroidStaticLayout? layout = null;
+            try
+            {
+                var displayTitle = LocalizationService.PrepareTextForDisplay(task.Title ?? string.Empty);
+                layout = CreateTextLayout(displayTitle, textPaint,
+                    Math.Max(1, (int)Math.Ceiling(maxTextWidth)), 1.22f, justify: true);
+                var cardHeight = Math.Max(baseCardHeight, layout.Height + fontSize * 0.82f);
+                rows.Add(new PreparedRow(task, textPaint, layout, cardHeight));
+            }
+            catch
+            {
+                layout?.Dispose();
+                textPaint.Dispose();
+                throw;
+            }
         }
         return rows;
     }
 
-    private static List<string> WrapText(string text, AndroidPaint paint, float maxWidth)
+    private static void DisposeRows(IEnumerable<PreparedRow> rows)
     {
-        var result = new List<string>();
-        var paragraphs = (text ?? string.Empty).Replace("\r", string.Empty).Split('\n');
-        foreach (var paragraph in paragraphs)
-        {
-            var current = string.Empty;
-            foreach (var word in paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var candidate = current.Length == 0 ? word : $"{current} {word}";
-                if (paint.MeasureText(candidate) <= maxWidth)
-                {
-                    current = candidate;
-                    continue;
-                }
-
-                if (current.Length > 0)
-                {
-                    result.Add(current);
-                    current = string.Empty;
-                }
-
-                if (paint.MeasureText(word) <= maxWidth)
-                {
-                    current = word;
-                    continue;
-                }
-
-                // Even a very long unbroken word is wrapped character by character.
-                foreach (var character in word)
-                {
-                    var next = current + character;
-                    if (current.Length > 0 && paint.MeasureText(next) > maxWidth)
-                    {
-                        result.Add(current);
-                        current = character.ToString();
-                    }
-                    else
-                    {
-                        current = next;
-                    }
-                }
-            }
-
-            if (current.Length > 0 || paragraph.Length == 0)
-                result.Add(current);
-        }
-
-        if (result.Count == 0) result.Add(string.Empty);
-        return result;
+        foreach (var row in rows) row.Dispose();
     }
 
-    private sealed record PreparedRow(TodoItem Task, List<string> Lines, float Height);
+    private sealed class PreparedRow : IDisposable
+    {
+        public TodoItem Task { get; }
+        public AndroidTextPaint Paint { get; }
+        public AndroidStaticLayout Layout { get; }
+        public float Height { get; }
+
+        public PreparedRow(TodoItem task, AndroidTextPaint paint, AndroidStaticLayout layout, float height)
+        {
+            Task = task;
+            Paint = paint;
+            Layout = layout;
+            Height = height;
+        }
+
+        public void Dispose()
+        {
+            Layout.Dispose();
+            Paint.Dispose();
+        }
+    }
+
 }
