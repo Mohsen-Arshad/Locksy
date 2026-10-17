@@ -113,23 +113,23 @@ public sealed class AndroidWallpaperService : IWallpaperService
                 return false;
 
             // Center-crop the selected image so it fills the lock screen without stretching.
-            var sourceAspect = image.Width / (float)image.Height;
-            var targetAspect = width / (float)height;
+            var decodedImageAspect = image.Width / (float)image.Height;
+            var canvasAspect = width / (float)height;
             int cropWidth;
             int cropHeight;
             int left;
             int top;
-            if (sourceAspect > targetAspect)
+            if (decodedImageAspect > canvasAspect)
             {
                 cropHeight = image.Height;
-                cropWidth = Math.Max(1, (int)Math.Round(image.Height * targetAspect));
+                cropWidth = Math.Max(1, (int)Math.Round(image.Height * canvasAspect));
                 left = (image.Width - cropWidth) / 2;
                 top = 0;
             }
             else
             {
                 cropWidth = image.Width;
-                cropHeight = Math.Max(1, (int)Math.Round(image.Width / targetAspect));
+                cropHeight = Math.Max(1, (int)Math.Round(image.Width / canvasAspect));
                 left = 0;
                 top = (image.Height - cropHeight) / 2;
             }
@@ -137,8 +137,8 @@ public sealed class AndroidWallpaperService : IWallpaperService
             using (var imagePaint = new AndroidPaint { AntiAlias = true, FilterBitmap = true, Color = AndroidColor.White })
             {
                 canvas.DrawBitmap(image,
-                    new Android.Graphics.Rect(left, top, left + cropWidth, top + cropHeight),
-                    new Android.Graphics.Rect(0, 0, width, height), imagePaint);
+                    new global::Android.Graphics.Rect(left, top, left + cropWidth, top + cropHeight),
+                    new global::Android.Graphics.Rect(0, 0, width, height), imagePaint);
             }
 
             // A subtle scrim keeps un-tinted task text readable over photographs without hiding the image.
