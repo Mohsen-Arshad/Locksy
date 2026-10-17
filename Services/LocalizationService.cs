@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.Maui.Storage;
 using Microsoft.Maui.Controls;
 
@@ -10,6 +11,10 @@ public static class LocalizationService
     private const string LanguagePreferenceKey = "locksy-language";
     private static readonly CultureInfo EnglishCulture = CultureInfo.GetCultureInfo("en-US");
     private static readonly CultureInfo PersianCulture = CultureInfo.GetCultureInfo("fa-IR");
+
+    private static readonly Regex EmbeddedLeftToRightRun = new(
+        @"(?i:https?://[^\s]+)|(?<![A-Za-z0-9])[A-Za-z0-9]+(?:[._:/?#&=%+@'-][A-Za-z0-9]+)*",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly IReadOnlyDictionary<string, string> Persian = new Dictionary<string, string>(StringComparer.Ordinal)
     {
@@ -225,6 +230,22 @@ public static class LocalizationService
     {
         if (string.IsNullOrEmpty(value) || !IsPersian) return value ?? string.Empty;
         return Persian.TryGetValue(value, out var translated) ? translated : value;
+    }
+
+
+    /// <summary>Protect embedded English words, identifiers, and URLs inside Persian paragraphs from bidi reordering.</summary>
+    public static string PrepareTextForDisplay(string? value)
+    {
+        if (string.IsNullOrEmpty(value) || !IsPersian) return value ?? string.Empty;
+
+        // Isolates are only useful when this is actually a mixed-direction string.
+        var hasRightToLeftText = value.Any(c => c >= '\u0600' && c <= '\u06FF');
+        var hasAsciiRun = value.Any(c => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9');
+        if (!hasRightToLeftText || !hasAsciiRun) return value;
+
+        // LRI/PDI keep the characters inside each Latin run in natural reading order,
+        // even when the surrounding paragraph is right-to-left. The source value is not mutated.
+        return EmbeddedLeftToRightRun.Replace(value, match => "\u2066" + match.Value + "\u2069");
     }
 
     public static void SetLanguage(string languageCode)
