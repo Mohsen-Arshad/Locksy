@@ -40,18 +40,18 @@
                          Grid.Column="2"
                          Source="settings_gear.svg"
                          Clicked="SettingsButton_Clicked"
-                         WidthRequest="54"
-                         HeightRequest="54"
-                         Padding="8"
+                         WidthRequest="43.2"
+                         HeightRequest="43.2"
+                         Padding="6.4"
                          Aspect="AspectFit"
                          BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
                          BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
                          BorderWidth="1"
-                         CornerRadius="16"
+                         CornerRadius="12.8"
                          SemanticProperties.Description="Open application settings"
                          AutomationProperties.Name="Application settings">
                 <ImageButton.Shadow>
-                    <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="1,2" Radius="6" Opacity="0.30" />
+                    <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="1,1.6" Radius="4.8" Opacity="0.28" />
                 </ImageButton.Shadow>
             </ImageButton>
         </Grid>
