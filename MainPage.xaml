@@ -187,6 +187,7 @@
                                    FontSize="15"
                                    TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
                                    VerticalTextAlignment="Center"
+                                   HorizontalTextAlignment="Justify"
                                    LineBreakMode="WordWrap"
                                    HandlerChanged="TaskTitle_HandlerChanged">
                                 <Label.GestureRecognizers>
