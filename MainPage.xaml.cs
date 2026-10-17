@@ -54,6 +54,12 @@ public partial class MainPage : ContentPage
     private bool _autoApplyPending;
     private bool _isAddingTask;
     private bool _isSendingTaskToBackground;
+    // Settings chosen before creation apply to the next reminder only.
+    private bool _hasPendingNewTaskSettings;
+    private string _pendingNewTaskColorKey = TodoPalette.DefaultKey;
+    private string _pendingNewTaskPaletteKey = TodoPalette.VibrantPaletteKey;
+    private bool _pendingNewTaskReminderEnabled;
+    private DateTime? _pendingNewTaskReminderAt;
     private DateTime _lastBackPressUtc = DateTime.MinValue;
     private bool _compactEditorPopup;
 #if ANDROID
@@ -198,10 +204,51 @@ public partial class MainPage : ContentPage
         // operation before changing the collection so auto-apply cannot relaunch the
         // OEM wallpaper flow between two consecutive task entries.
         _isAddingTask = true;
+        var addedWithDraftSettings = false;
         try
         {
-            if (_viewModel.AddTaskCommand.CanExecute(null))
+            if (_hasPendingNewTaskSettings)
+            {
+                var title = (_viewModel.NewTaskText ?? string.Empty).Trim();
+                if (title.Length > 0)
+                {
+                    if (_pendingNewTaskReminderEnabled &&
+                        (!_pendingNewTaskReminderAt.HasValue || _pendingNewTaskReminderAt.Value <= DateTime.Now))
+                    {
+                        await ShowInfoPopupAsync(
+                            "Choose a future time",
+                            "The saved reminder time has passed. Open settings and choose a future date and time before adding this reminder.",
+                            isError: true);
+                        return;
+                    }
+
+                    if (_pendingNewTaskReminderEnabled && !await EnsureNotificationPermissionAsync())
+                        return;
+
+                    var created = _viewModel.AddTaskWithSettings(
+                        title,
+                        _pendingNewTaskColorKey,
+                        _pendingNewTaskPaletteKey,
+                        _pendingNewTaskReminderEnabled,
+                        _pendingNewTaskReminderAt);
+                    addedWithDraftSettings = created is not null;
+                    if (addedWithDraftSettings)
+                    {
+                        _hasPendingNewTaskSettings = false;
+                        _pendingNewTaskColorKey = TodoPalette.DefaultKey;
+                        _pendingNewTaskPaletteKey = TodoPalette.VibrantPaletteKey;
+                        _pendingNewTaskReminderEnabled = false;
+                        _pendingNewTaskReminderAt = null;
+                        StatusLabel.Text = created!.IsReminderActive
+                            ? $"Reminder added · alarm {created.ReminderAt:dd MMM, HH:mm}."
+                            : "Reminder added.";
+                    }
+                }
+            }
+            else if (_viewModel.AddTaskCommand.CanExecute(null))
+            {
                 _viewModel.AddTaskCommand.Execute(null);
+            }
         }
         finally
         {
@@ -223,6 +270,388 @@ public partial class MainPage : ContentPage
             if (_autoApplyPending && AutoApplySwitch.IsToggled && !_isApplying)
                 StatusLabel.Text = AutoApplyQueuedStatus;
         });
+    }
+
+    private async void NewTaskSettingsButton_Clicked(object? sender, EventArgs e)
+    {
+        var initialTitle = (_viewModel.NewTaskText ?? string.Empty).Trim();
+        var selectedPaletteKey = _hasPendingNewTaskSettings
+            ? _pendingNewTaskPaletteKey
+            : TodoPalette.VibrantPaletteKey;
+        var selectedColorKey = _hasPendingNewTaskSettings
+            ? _pendingNewTaskColorKey
+            : TodoPalette.DefaultKey;
+        var alarmEnabled = _hasPendingNewTaskSettings && _pendingNewTaskReminderEnabled;
+        var initialReminder = _pendingNewTaskReminderAt is { } savedTime && savedTime > DateTime.Now
+            ? savedTime
+            : DateTime.Now.AddMinutes(5);
+
+        var completion = BeginPopup(
+            "New reminder settings",
+            "Enter the reminder, choose its color, and optionally set an alarm before adding it.",
+            "◷");
+        _compactEditorPopup = true;
+        var availablePageWidth = Width > 0 ? Width : 360d;
+        var popupWidth = Math.Max(270d, Math.Min(370d, availablePageWidth - 28d));
+        ModalCard.WidthRequest = popupWidth;
+        ModalCard.MaximumWidthRequest = popupWidth;
+        ModalCard.MaximumHeightRequest = Math.Max(320d, Math.Min(660d, Height - 32d));
+        ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 360d, 230d, 430d);
+
+        // Larger clock mark, matching the user's request for better visibility in settings.
+        var clockBadge = new Border
+        {
+            WidthRequest = 58,
+            HeightRequest = 58,
+            HorizontalOptions = LayoutOptions.Center,
+            Padding = 0,
+            BackgroundColor = PopupColor("#E7E1FF", "#3A3158"),
+            Stroke = new SolidColorBrush(PopupColor("#CFC4FF", "#5A4B82")),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(19) },
+            Content = new Label
+            {
+                Text = "◷",
+                FontSize = 38,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = Color.FromArgb("#8875E8"),
+                HorizontalTextAlignment = TextAlignment.Center,
+                VerticalTextAlignment = TextAlignment.Center,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
+            }
+        };
+        ModalBody.Children.Add(clockBadge);
+
+        ModalBody.Children.Add(new Label
+        {
+            Text = "Reminder title",
+            FontSize = 13,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#303545", "#F1F2FA")
+        });
+        var draftTitleEntry = new Entry
+        {
+            Text = initialTitle,
+            Placeholder = "What do you need to remember?",
+            MaxLength = 300,
+            ReturnType = ReturnType.Done,
+            ClearButtonVisibility = ClearButtonVisibility.WhileEditing,
+            FontSize = 14,
+            BackgroundColor = Colors.Transparent,
+            TextColor = PopupColor("#303545", "#F1F2FA"),
+            PlaceholderColor = PopupColor("#8C8798", "#9690A8")
+        };
+        ModalBody.Children.Add(new Border
+        {
+            Padding = new Thickness(10, 4),
+            MinimumHeightRequest = 48,
+            BackgroundColor = PopupColor("#E1E6F0", "#1A1B26"),
+            Stroke = new SolidColorBrush(PopupColor("#D1D7E3", "#292B3A")),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(13) },
+            Content = draftTitleEntry
+        });
+
+        ModalBody.Children.Add(new Label
+        {
+            Text = "Task color",
+            FontSize = 13,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#303545", "#F1F2FA")
+        });
+
+        var paletteSelector = new Grid
+        {
+            ColumnSpacing = 6,
+            HeightRequest = 40,
+            Margin = new Thickness(0, 0, 0, 2)
+        };
+        foreach (var _ in TodoPalette.Palettes)
+            paletteSelector.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        var paletteBorders = new Dictionary<string, Border>(StringComparer.Ordinal);
+        var paletteLabels = new Dictionary<string, Label>(StringComparer.Ordinal);
+
+        var colorGrid = new Grid { ColumnSpacing = 6, RowSpacing = 6 };
+        for (var i = 0; i < 3; i++)
+            colorGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        for (var i = 0; i < (TodoPalette.Options.Count + 2) / 3; i++)
+            colorGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        var colorBorders = new Dictionary<string, Border>(StringComparer.Ordinal);
+        var colorLabels = new Dictionary<string, Label>(StringComparer.Ordinal);
+        var colorSwatches = new Dictionary<string, Border>(StringComparer.Ordinal);
+
+        void RefreshDraftColors()
+        {
+            foreach (var palette in TodoPalette.Palettes)
+            {
+                var chosen = palette.Key == selectedPaletteKey;
+                paletteBorders[palette.Key].BackgroundColor = chosen
+                    ? PopupColor("#E1D9FF", "#3A3158")
+                    : PopupColor("#E9EAF2", "#20212E");
+                paletteBorders[palette.Key].Stroke = new SolidColorBrush(chosen
+                    ? Color.FromArgb("#8A76EB")
+                    : PopupColor("#D1D6E3", "#38394C"));
+                paletteBorders[palette.Key].StrokeThickness = chosen ? 1.7 : 1;
+                paletteLabels[palette.Key].TextColor = chosen
+                    ? PopupColor("#46347F", "#F1ECFF")
+                    : PopupColor("#5B536F", "#C6BEDD");
+            }
+
+            foreach (var option in TodoPalette.Options)
+            {
+                colorSwatches[option.Key].BackgroundColor = Color.FromArgb(TodoPalette.GetHex(option.Key, selectedPaletteKey));
+                var chosen = option.Key == selectedColorKey;
+                colorBorders[option.Key].BackgroundColor = chosen
+                    ? PopupColor("#E4DFFF", "#38304F")
+                    : PopupColor("#F0F2F8", "#252736");
+                colorBorders[option.Key].Stroke = new SolidColorBrush(chosen
+                    ? Color.FromArgb("#8A76EB")
+                    : PopupColor("#D1D9E5", "#383A4D"));
+                colorBorders[option.Key].StrokeThickness = chosen ? 1.7 : 1;
+                colorLabels[option.Key].TextColor = PopupColor("#3F4559", "#E5E7F5");
+            }
+        }
+
+        for (var i = 0; i < TodoPalette.Palettes.Count; i++)
+        {
+            var palette = TodoPalette.Palettes[i];
+            var label = new Label
+            {
+                Text = palette.Name,
+                FontSize = 10,
+                FontAttributes = FontAttributes.Bold,
+                HorizontalTextAlignment = TextAlignment.Center,
+                VerticalTextAlignment = TextAlignment.Center,
+                LineBreakMode = LineBreakMode.TailTruncation,
+                TextColor = PopupColor("#5B536F", "#C6BEDD")
+            };
+            var border = new Border
+            {
+                Padding = new Thickness(3, 2),
+                Content = label,
+                BackgroundColor = PopupColor("#E9EAF2", "#20212E"),
+                Stroke = new SolidColorBrush(PopupColor("#D1D6E3", "#38394C")),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(11) }
+            };
+            var key = palette.Key;
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += (_, _) =>
+            {
+                selectedPaletteKey = key;
+                RefreshDraftColors();
+            };
+            border.GestureRecognizers.Add(tap);
+            paletteBorders[key] = border;
+            paletteLabels[key] = label;
+            paletteSelector.Add(border, i, 0);
+        }
+
+        for (var i = 0; i < TodoPalette.Options.Count; i++)
+        {
+            var option = TodoPalette.Options[i];
+            var swatch = new Border
+            {
+                WidthRequest = 17,
+                HeightRequest = 17,
+                BackgroundColor = Color.FromArgb(TodoPalette.GetHex(option.Key, selectedPaletteKey)),
+                Stroke = new SolidColorBrush(PopupColor("#D1D7E3", "#53566B")),
+                StrokeThickness = 0.7,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8.5) },
+                VerticalOptions = LayoutOptions.Center
+            };
+            var label = new Label
+            {
+                Text = option.Name,
+                FontSize = 10.5,
+                VerticalTextAlignment = TextAlignment.Center,
+                LineBreakMode = LineBreakMode.TailTruncation,
+                TextColor = PopupColor("#3F4559", "#E5E7F5")
+            };
+            var cell = new Grid
+            {
+                ColumnDefinitions = { new ColumnDefinition(new GridLength(21)), new ColumnDefinition(GridLength.Star) },
+                ColumnSpacing = 4,
+                Padding = new Thickness(5, 1),
+                HeightRequest = 34
+            };
+            cell.Add(swatch, 0, 0);
+            cell.Add(label, 1, 0);
+            var border = new Border
+            {
+                Padding = 2,
+                HeightRequest = 36,
+                Content = cell,
+                BackgroundColor = PopupColor("#F0F2F8", "#252736"),
+                Stroke = new SolidColorBrush(PopupColor("#D1D9E5", "#383A4D")),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) }
+            };
+            var colorKey = option.Key;
+            var colorTap = new TapGestureRecognizer();
+            colorTap.Tapped += (_, _) =>
+            {
+                selectedColorKey = colorKey;
+                RefreshDraftColors();
+            };
+            border.GestureRecognizers.Add(colorTap);
+            colorBorders[colorKey] = border;
+            colorLabels[colorKey] = label;
+            colorSwatches[colorKey] = swatch;
+            colorGrid.Add(border, i % 3, i / 3);
+        }
+        ModalBody.Children.Add(paletteSelector);
+        ModalBody.Children.Add(colorGrid);
+        RefreshDraftColors();
+
+        var alarmTitle = new Label
+        {
+            Text = "Reminder alarm",
+            FontSize = 13,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#303545", "#F1F2FA"),
+            VerticalTextAlignment = TextAlignment.Center
+        };
+        var alarmSwitch = new Switch
+        {
+            IsToggled = alarmEnabled,
+            OnColor = Color.FromArgb("#8875E8"),
+            ThumbColor = Colors.White,
+            VerticalOptions = LayoutOptions.Center
+        };
+        var alarmRow = new Grid
+        {
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
+            Margin = new Thickness(0, 7, 0, 0)
+        };
+        alarmRow.Add(alarmTitle, 0, 0);
+        alarmRow.Add(alarmSwitch, 1, 0);
+        ModalBody.Children.Add(alarmRow);
+
+        var defaultReminder = initialReminder;
+        var datePicker = new DatePicker
+        {
+            Date = defaultReminder.Date,
+            MinimumDate = DateTime.Today,
+            Format = "ddd, dd MMM yyyy",
+            FontSize = 13,
+            TextColor = PopupColor("#303545", "#F1F2FA"),
+            BackgroundColor = Colors.Transparent,
+            HorizontalOptions = LayoutOptions.Fill
+        };
+        var timePicker = new TimePicker
+        {
+            Time = new TimeSpan(defaultReminder.Hour, defaultReminder.Minute, 0),
+            Format = "HH:mm",
+            FontSize = 13,
+            TextColor = PopupColor("#303545", "#F1F2FA"),
+            BackgroundColor = Colors.Transparent,
+            HorizontalOptions = LayoutOptions.Fill
+        };
+        var dateTimeGrid = new Grid
+        {
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) },
+            ColumnSpacing = 8
+        };
+        dateTimeGrid.Add(CreateReminderPickerBorder(datePicker), 0, 0);
+        dateTimeGrid.Add(CreateReminderPickerBorder(timePicker), 1, 0);
+        ModalBody.Children.Add(new Label
+        {
+            Text = "Reminder date and time",
+            FontSize = 11,
+            TextColor = PopupColor("#777E92", "#A7ADC4")
+        });
+        ModalBody.Children.Add(dateTimeGrid);
+
+        void UpdateAlarmControls()
+        {
+            datePicker.IsEnabled = alarmSwitch.IsToggled;
+            timePicker.IsEnabled = alarmSwitch.IsToggled;
+            dateTimeGrid.Opacity = alarmSwitch.IsToggled ? 1 : 0.42;
+        }
+        alarmSwitch.Toggled += (_, _) => UpdateAlarmControls();
+        UpdateAlarmControls();
+
+        bool ValidateDraft(bool adding)
+        {
+            if (alarmSwitch.IsToggled && (datePicker.Date.Date + timePicker.Time) <= DateTime.Now)
+            {
+                ModalMessage.Text = "Choose a future date and time for the alarm.";
+                ModalMessage.IsVisible = true;
+                return false;
+            }
+            if (adding && string.IsNullOrWhiteSpace(draftTitleEntry.Text))
+            {
+                ModalMessage.Text = "Enter a reminder title before adding it.";
+                ModalMessage.IsVisible = true;
+                return false;
+            }
+            return true;
+        }
+
+        var actions = new Grid { ColumnSpacing = 8, RowSpacing = 7 };
+        actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        actions.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        actions.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        actions.Add(CreatePopupAction("Cancel", null, primary: false, destructive: false), 0, 0);
+        actions.Add(CreatePopupAction("Save settings", "SAVE_SETTINGS", primary: false, destructive: false,
+            customAction: () => { if (ValidateDraft(false)) CompletePopup("SAVE_SETTINGS"); }), 1, 0);
+        var addAction = CreatePopupAction("Add reminder", "ADD_REMINDER", primary: true, destructive: false,
+            customAction: () => { if (ValidateDraft(true)) CompletePopup("ADD_REMINDER"); });
+        actions.Add(addAction, 0, 1);
+        Grid.SetColumnSpan(addAction, 2);
+        ModalButtons.Children.Add(actions);
+
+        var result = await completion.Task;
+        _compactEditorPopup = false;
+        ModalCard.WidthRequest = -1;
+        ModalCard.MaximumWidthRequest = 380;
+        if (result is null) return;
+
+        _viewModel.NewTaskText = (draftTitleEntry.Text ?? string.Empty).Trim();
+        _pendingNewTaskColorKey = selectedColorKey;
+        _pendingNewTaskPaletteKey = selectedPaletteKey;
+        _pendingNewTaskReminderEnabled = alarmSwitch.IsToggled;
+        _pendingNewTaskReminderAt = alarmSwitch.IsToggled
+            ? DateTime.SpecifyKind(datePicker.Date.Date + timePicker.Time, DateTimeKind.Local)
+            : null;
+        _hasPendingNewTaskSettings = true;
+
+        if (result == "SAVE_SETTINGS")
+        {
+            StatusLabel.Text = "Settings saved for the next reminder.";
+            return;
+        }
+
+        if (result == "ADD_REMINDER")
+            await AddTaskAndKeepInputReadyAsync();
+    }
+
+    private async Task<bool> EnsureNotificationPermissionAsync()
+    {
+#if ANDROID
+        PermissionStatus notificationPermission;
+        try
+        {
+            notificationPermission = await Permissions.RequestAsync<Permissions.PostNotifications>();
+        }
+        catch (Exception ex)
+        {
+            await ShowInfoPopupAsync("Notification permission", ex.Message, isError: true);
+            return false;
+        }
+        if (notificationPermission != PermissionStatus.Granted)
+        {
+            await ShowInfoPopupAsync(
+                "Notifications are disabled",
+                "Locksy cannot show the reminder until notification permission is enabled in Android Settings.",
+                isError: true);
+            return false;
+        }
+#endif
+        return true;
     }
 
     private void NewTaskEntry_Unfocused(object? sender, FocusEventArgs e)
@@ -376,6 +805,29 @@ public partial class MainPage : ContentPage
         ModalCard.MaximumHeightRequest = Math.Min(500d, Math.Max(300d, Height - 48d));
         ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 430d, 170d, 250d);
 
+        ModalBody.Children.Add(new Border
+        {
+            WidthRequest = 58,
+            HeightRequest = 58,
+            HorizontalOptions = LayoutOptions.Center,
+            Padding = 0,
+            BackgroundColor = PopupColor("#E7E1FF", "#3A3158"),
+            Stroke = new SolidColorBrush(PopupColor("#CFC4FF", "#5A4B82")),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(19) },
+            Content = new Label
+            {
+                Text = "◷",
+                FontSize = 38,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = Color.FromArgb("#8875E8"),
+                HorizontalTextAlignment = TextAlignment.Center,
+                VerticalTextAlignment = TextAlignment.Center,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
+            }
+        });
+
         var enabled = new Switch
         {
             IsToggled = task.IsReminderEnabled && task.ReminderAt.HasValue,
@@ -478,26 +930,8 @@ public partial class MainPage : ContentPage
             return;
         }
 
-#if ANDROID
-        PermissionStatus notificationPermission;
-        try
-        {
-            notificationPermission = await Permissions.RequestAsync<Permissions.PostNotifications>();
-        }
-        catch (Exception ex)
-        {
-            await ShowInfoPopupAsync("Notification permission", ex.Message, isError: true);
+        if (!await EnsureNotificationPermissionAsync())
             return;
-        }
-        if (notificationPermission != PermissionStatus.Granted)
-        {
-            await ShowInfoPopupAsync(
-                "Notifications are disabled",
-                "Locksy cannot show the reminder until notification permission is enabled in Android Settings.",
-                isError: true);
-            return;
-        }
-#endif
 
         task.IsReminderEnabled = false;
         task.ReminderAt = scheduledAt;
@@ -1527,6 +1961,7 @@ public partial class MainPage : ContentPage
             ModalIconImage.Source = ImageSource.FromFile("locksy_options_icon.svg");
         else
             ModalIconLabel.Text = icon;
+        ModalIconLabel.FontSize = icon is "◷" or "⏰" ? 30 : 22;
         ModalBody.Children.Clear();
         ModalButtons.Children.Clear();
         _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
