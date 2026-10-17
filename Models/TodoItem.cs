@@ -12,7 +12,7 @@ public sealed class TodoItem : INotifyPropertyChanged
 {
     private string _title = string.Empty;
     private bool _isCompleted;
-    private string _colorKey = TodoPalette.DefaultKey;
+    private string _colorKey = TodoPalette.NoColorKey;
     private string _colorPaletteKey = TodoPalette.VibrantPaletteKey;
     private bool _isReminderEnabled;
     private DateTime? _reminderAt;
@@ -80,7 +80,7 @@ public sealed class TodoItem : INotifyPropertyChanged
         get => _colorKey;
         set
         {
-            var normalized = TodoPalette.IsValidKey(value) ? value : TodoPalette.DefaultKey;
+            var normalized = TodoPalette.IsValidKey(value) ? value : TodoPalette.NoColorKey;
             if (_colorKey == normalized) return;
             _colorKey = normalized;
             OnPropertyChanged();

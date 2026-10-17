@@ -56,7 +56,7 @@ public partial class MainPage : ContentPage
     private bool _isSendingTaskToBackground;
     // Settings chosen before creation apply to the next reminder only.
     private bool _hasPendingNewTaskSettings;
-    private string _pendingNewTaskColorKey = TodoPalette.DefaultKey;
+    private string _pendingNewTaskColorKey = TodoPalette.NoColorKey;
     private string _pendingNewTaskPaletteKey = TodoPalette.VibrantPaletteKey;
     private bool _pendingNewTaskReminderEnabled;
     private DateTime? _pendingNewTaskReminderAt;
@@ -235,7 +235,7 @@ public partial class MainPage : ContentPage
                     if (addedWithDraftSettings)
                     {
                         _hasPendingNewTaskSettings = false;
-                        _pendingNewTaskColorKey = TodoPalette.DefaultKey;
+                        _pendingNewTaskColorKey = TodoPalette.NoColorKey;
                         _pendingNewTaskPaletteKey = TodoPalette.VibrantPaletteKey;
                         _pendingNewTaskReminderEnabled = false;
                         _pendingNewTaskReminderAt = null;
@@ -280,7 +280,7 @@ public partial class MainPage : ContentPage
             : TodoPalette.VibrantPaletteKey;
         var selectedColorKey = _hasPendingNewTaskSettings
             ? _pendingNewTaskColorKey
-            : TodoPalette.DefaultKey;
+            : TodoPalette.NoColorKey;
         var alarmEnabled = _hasPendingNewTaskSettings && _pendingNewTaskReminderEnabled;
         var initialReminder = _pendingNewTaskReminderAt is { } savedTime && savedTime > DateTime.Now
             ? savedTime
