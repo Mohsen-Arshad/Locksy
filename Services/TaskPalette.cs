@@ -14,6 +14,7 @@ public sealed record TaskColorOption(
 public static class TodoPalette
 {
     public const string DefaultKey = "default";
+    public const string NoColorKey = "none";
 
     public const string LightPaletteKey = "light";
     public const string DarkPaletteKey = "dark";
@@ -28,6 +29,7 @@ public static class TodoPalette
 
     public static IReadOnlyList<TaskColorOption> Options { get; } = new[]
     {
+        new TaskColorOption(NoColorKey, "No color", "○", "#00000000", "#00000000", "#34394B", "#F1F2FA", "#00000000", "#252F48"),
         new TaskColorOption(DefaultKey, "Default", "⚪", "#F0F2F8", "#252736", "#34394B", "#F1F2FA", "#AEBAD1", "#252F48"),
         new TaskColorOption("green", "Green", "🟩", "#DDF7E7", "#285A42", "#173A28", "#F0FFF4", "#8ECFA2", "#164629"),
         new TaskColorOption("blue", "Blue", "🟦", "#DCEBFF", "#2A4D70", "#1A3354", "#EEF7FF", "#8DB9ED", "#16385F"),

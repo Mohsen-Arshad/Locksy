@@ -341,12 +341,16 @@ public sealed class AndroidWallpaperService : IWallpaperService
             if (y + row.Height > regionBottom + 1f && i > 0) break;
             var cardBottom = Math.Min(regionBottom, y + row.Height);
             // A task keeps its chosen palette variant independently of app appearance.
-            // Use an opaque fill so the same selection looks consistent in Light/Dark mode.
-            var paletteColor = AndroidColor.ParseColor(
-                TodoPalette.GetHex(row.Task.ColorKey, row.Task.ColorPaletteKey));
-            var background = AndroidColor.Argb(255, paletteColor.R, paletteColor.G, paletteColor.B);
-            using (var cardPaint = new AndroidPaint { AntiAlias = true, Color = background })
+            // The default "No color" option intentionally skips the fill so the wallpaper
+            // remains visible through the task card (100% transparent background).
+            if (row.Task.ColorKey != TodoPalette.NoColorKey)
+            {
+                var paletteColor = AndroidColor.ParseColor(
+                    TodoPalette.GetHex(row.Task.ColorKey, row.Task.ColorPaletteKey));
+                var background = AndroidColor.Argb(255, paletteColor.R, paletteColor.G, paletteColor.B);
+                using var cardPaint = new AndroidPaint { AntiAlias = true, Color = background };
                 canvas.DrawRoundRect(margin, y, margin + cardWidth, cardBottom, radius, radius, cardPaint);
+            }
 
             using (var stroke = new AndroidPaint
             {
