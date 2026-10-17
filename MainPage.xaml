@@ -14,9 +14,9 @@
             RowDefinitions="Auto,Auto,*,Auto,Auto,Auto"
             RowSpacing="14">
 
-        <!-- Brand header and manual/system theme selector -->
+        <!-- Brand header and primary settings entry -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-            <!-- Keep settings directly under the Locksy mark, separate from the theme control. -->
+            <!-- Keep the brand mark visually separate from the main settings action. -->
             <VerticalStackLayout Grid.Column="0"
                                  Spacing="2"
                                  HorizontalOptions="Center"
@@ -26,19 +26,6 @@
                        HeightRequest="54"
                        VerticalOptions="Center"
                        HorizontalOptions="Center" />
-                <ImageButton x:Name="SettingsButton"
-                             Source="settings_gear.svg"
-                             Clicked="SettingsButton_Clicked"
-                             WidthRequest="34"
-                             HeightRequest="28"
-                             Padding="6"
-                             Aspect="AspectFit"
-                             BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
-                             BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
-                             BorderWidth="1"
-                             CornerRadius="10"
-                             SemanticProperties.Description="Open application settings"
-                             AutomationProperties.Name="Application settings" />
             </VerticalStackLayout>
             <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                 <Label Text="Locksy"
@@ -49,75 +36,24 @@
                        FontSize="12"
                        TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}" />
             </VerticalStackLayout>
-            <VerticalStackLayout Grid.Column="2" Spacing="6" HorizontalOptions="Center" VerticalOptions="Center">
-            <Border x:Name="ThemeToggleBorder"
-                    WidthRequest="98"
-                    HeightRequest="32"
-                    Padding="3"
-                    BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
-                    Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 24"
-                    VerticalOptions="Center"
-                    SemanticProperties.Description="Switch between dark and light theme">
-                <Border.Shadow>
+            <ImageButton x:Name="SettingsButton"
+                         Grid.Column="2"
+                         Source="settings_gear.svg"
+                         Clicked="SettingsButton_Clicked"
+                         WidthRequest="64"
+                         HeightRequest="64"
+                         Padding="10"
+                         Aspect="AspectFit"
+                         BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                         BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
+                         BorderWidth="1"
+                         CornerRadius="19"
+                         SemanticProperties.Description="Open application settings"
+                         AutomationProperties.Name="Application settings">
+                <ImageButton.Shadow>
                     <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="2,3" Radius="8" Opacity="0.34" />
-                </Border.Shadow>
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="ThemeToggle_Tapped" />
-                </Border.GestureRecognizers>
-                <Grid ColumnDefinitions="23,*,23" ColumnSpacing="1">
-                    <Border x:Name="MoonIconContainer"
-                            Grid.Column="0"
-                            WidthRequest="23"
-                            HeightRequest="23"
-                            BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
-                            Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
-                            StrokeThickness="1"
-                            StrokeShape="RoundRectangle 12"
-                            VerticalOptions="Center"
-                            HorizontalOptions="Center">
-                        <Image x:Name="ThemeMoonIcon"
-                               Source="theme_moon.svg"
-                               WidthRequest="15"
-                               HeightRequest="15"
-                               Aspect="AspectFit"
-                               Margin="0"
-                               HorizontalOptions="Center"
-                               VerticalOptions="Center" />
-                    </Border>
-                    <Label x:Name="ThemeToggleLabel"
-                           Grid.Column="1"
-                           Text="DARK"
-                           FontSize="9"
-                           FontAttributes="Bold"
-                           CharacterSpacing="0.6"
-                           TextColor="#FFF3CF"
-                           HorizontalTextAlignment="Center"
-                           VerticalTextAlignment="Center" />
-                    <Border x:Name="SunIconContainer"
-                            Grid.Column="2"
-                            WidthRequest="23"
-                            HeightRequest="23"
-                            IsVisible="False"
-                            BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
-                            Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
-                            StrokeThickness="1"
-                            StrokeShape="RoundRectangle 12"
-                            VerticalOptions="Center"
-                            HorizontalOptions="Center">
-                        <Image x:Name="ThemeSunIcon"
-                               Source="theme_sun.svg"
-                               WidthRequest="15"
-                               HeightRequest="15"
-                               Aspect="AspectFit"
-                               Margin="0"
-                               HorizontalOptions="Center"
-                               VerticalOptions="Center" />
-                    </Border>
-                </Grid>
-            </Border>
-            </VerticalStackLayout>
+                </ImageButton.Shadow>
+            </ImageButton>
         </Grid>
 
         <!-- Add reminder: quick add plus a separate pre-add settings popup. -->

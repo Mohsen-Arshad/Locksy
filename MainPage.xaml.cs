@@ -99,14 +99,6 @@ public partial class MainPage : ContentPage
         BindingContext = _viewModel;
         _wallpaperService = new Platforms.Android.AndroidWallpaperService();
 
-        var savedTheme = ThemeService.GetSavedPreference();
-        var startInDarkMode = savedTheme switch
-        {
-            ThemePreference.Dark => true,
-            ThemePreference.Light => false,
-            _ => ThemeService.IsDarkMode()
-        };
-        UpdateThemeToggleVisual(startInDarkMode);
         var savedLayout = Preferences.Default.Get(LayoutPreferenceKey, (int)WallpaperLayout.ScreenAware);
         // In earlier Locksy builds, the visible "Tasks bottom" option was stored as
         // BelowTopClock (0). Migrate that old visible choice to the true bottom anchor.
@@ -210,11 +202,9 @@ public partial class MainPage : ContentPage
         FirstEightLabel.Text = LocalizationService.Translate("First 8 tasks on wallpaper");
         DragGhostTitle.Text = LocalizationService.Translate("Moving task");
         ModalSectionLabel.Text = LocalizationService.Translate("LOCKSY  ·  QUICK ACTION");
-        SemanticProperties.SetDescription(ThemeToggleBorder, LocalizationService.Translate("Switch between dark and light theme"));
         SemanticProperties.SetDescription(SettingsButton, LocalizationService.Translate("Open application settings"));
         SemanticProperties.SetDescription(NewTaskSettingsButton, LocalizationService.Translate("New reminder settings"));
         SemanticProperties.SetDescription(AutoApplySwitch, LocalizationService.Translate("Automatically refresh wallpaper after task edits"));
-        UpdateThemeToggleVisual(_themeToggleIsDark);
         UpdateClockLayoutSummary();
 
         if (_autoApplyPending)
@@ -233,14 +223,17 @@ public partial class MainPage : ContentPage
     {
         var selected = await ShowChoicePopupAsync(
             "Settings",
-            "Manage your app language, custom wallpaper and app information.",
-            new[] { "Language", "Background image", "About" },
+            "Manage your app theme, language, custom wallpaper and app information.",
+            new[] { "Theme", "Language", "Background image", "About" },
             cancelLabel: "Close",
-            icons: new[] { "Aa", "▧", "!" },
+            icons: new[] { "◐", "Aa", "▧", "!" },
             popupIcon: "settings");
 
         switch (selected)
         {
+            case "Theme":
+                await ShowThemeSettingsAsync();
+                break;
             case "Language":
                 await ShowLanguageSettingsAsync();
                 break;
@@ -251,6 +244,40 @@ public partial class MainPage : ContentPage
                 await ShowAboutPopupAsync();
                 break;
         }
+    }
+
+    private async Task ShowThemeSettingsAsync()
+    {
+        var isDark = ThemeService.IsDarkMode();
+        var message = isDark
+            ? "The dark theme is currently active."
+            : "The light theme is currently active.";
+        var selected = await ShowChoicePopupAsync(
+            "Theme",
+            message,
+            new[] { "Light theme", "Dark theme" },
+            cancelLabel: "Cancel",
+            icons: new[] { "☼", "☾" },
+            popupIcon: "settings");
+
+        if (selected == "Light theme")
+            ApplyThemePreference(ThemePreference.Light);
+        else if (selected == "Dark theme")
+            ApplyThemePreference(ThemePreference.Dark);
+    }
+
+    private void ApplyThemePreference(ThemePreference preference)
+    {
+        ThemeService.SetPreference(preference);
+#if ANDROID
+        MainActivity.RefreshNavigationBarTheme();
+#endif
+        _viewModel.RefreshTaskAppearances();
+        var status = preference == ThemePreference.Dark
+            ? "Dark theme selected."
+            : "Light theme selected.";
+        StatusLabel.Text = LocalizationService.Translate(status);
+        ScheduleAutoApply();
     }
 
     private async Task ShowLanguageSettingsAsync()
@@ -1647,47 +1674,6 @@ public partial class MainPage : ContentPage
     }
 #endif
 
-    private bool _themeToggleIsDark;
-
-    private void ThemeToggle_Tapped(object? sender, TappedEventArgs e)
-    {
-        if (_initializing) return;
-
-        _themeToggleIsDark = !_themeToggleIsDark;
-        var preference = _themeToggleIsDark ? ThemePreference.Dark : ThemePreference.Light;
-        ThemeService.SetPreference(preference);
-        UpdateThemeToggleVisual(_themeToggleIsDark);
-#if ANDROID
-        MainActivity.RefreshNavigationBarTheme();
-#endif
-        _viewModel.RefreshTaskAppearances();
-        StatusLabel.Text = LocalizationService.Translate(_themeToggleIsDark ? "Dark theme selected." : "Light theme selected.");
-        ScheduleAutoApply();
-    }
-
-    private void UpdateThemeToggleVisual(bool isDark)
-    {
-        _themeToggleIsDark = isDark;
-        var surface = Color.FromArgb(isDark ? "#252736" : "#F0F2F8");
-        var highlight = Color.FromArgb(isDark ? "#383A4D" : "#D4DBE7");
-        var text = Color.FromArgb(isDark ? "#E3E5F2" : "#4A5064");
-
-        ThemeToggleBorder.BackgroundColor = surface;
-        ThemeToggleBorder.Stroke = new SolidColorBrush(highlight);
-        ThemeToggleBorder.Shadow = CreateNeumorphicShadow(0.72f);
-        ThemeToggleLabel.Text = LocalizationService.Translate(isDark ? "DARK" : "LIGHT");
-        ThemeToggleLabel.TextColor = text;
-        MoonIconContainer.BackgroundColor = surface;
-        MoonIconContainer.Stroke = new SolidColorBrush(highlight);
-        MoonIconContainer.Shadow = CreateNeumorphicShadow(0.4f);
-        SunIconContainer.BackgroundColor = surface;
-        SunIconContainer.Stroke = new SolidColorBrush(highlight);
-        SunIconContainer.Shadow = CreateNeumorphicShadow(0.4f);
-        MoonIconContainer.IsVisible = isDark;
-        SunIconContainer.IsVisible = !isDark;
-        UpdateAutoApplyVisual(AutoApplySwitch.IsToggled);
-    }
-
     private void AutoApplyTrack_Tapped(object? sender, TappedEventArgs e)
     {
         AutoApplySwitch.IsToggled = !AutoApplySwitch.IsToggled;
@@ -2131,8 +2117,8 @@ public partial class MainPage : ContentPage
         else if (useSettingsIcon)
         {
             ModalIconImage.Source = ImageSource.FromFile("settings_gear.svg");
-            ModalIconImage.WidthRequest = 24;
-            ModalIconImage.HeightRequest = 24;
+            ModalIconImage.WidthRequest = 28;
+            ModalIconImage.HeightRequest = 28;
         }
         else
         {
