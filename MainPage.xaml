@@ -47,7 +47,7 @@
                          BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
                          BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
                          BorderWidth="1"
-                         CornerRadius="13"
+                         CornerRadius="12.8"
                          SemanticProperties.Description="Open application settings"
                          AutomationProperties.Name="Application settings">
                 <ImageButton.Shadow>
