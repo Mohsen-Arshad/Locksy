@@ -613,6 +613,9 @@ public sealed class AndroidWallpaperService : IWallpaperService
             AndroidStaticLayout? layout = null;
             try
             {
+                // Use the same display-only RTL/LTR embedding helper as the MAUI task labels.
+                // Do not render the raw stored title: classic RLE/LRE marks keep Latin runs
+                // (such as Locksy or a URL) in natural character order on the Android lock screen.
                 var displayTitle = LocalizationService.PrepareTextForDisplay(task.Title ?? string.Empty);
                 layout = CreateTextLayout(displayTitle, textPaint,
                     Math.Max(1, (int)Math.Ceiling(maxTextWidth)), 1.22f, justify: true);
