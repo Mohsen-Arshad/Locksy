@@ -64,6 +64,7 @@ public partial class MainPage : ContentPage
     private DateTime? _pendingNewTaskReminderAt;
     private DateTime _lastBackPressUtc = DateTime.MinValue;
     private bool _compactEditorPopup;
+    private bool _settingsTransitionRunning;
 #if ANDROID
     private readonly Dictionary<Android.Views.View, WeakReference<Label>> _nativeTitleViews = new();
     private readonly Dictionary<Android.Views.View, WeakReference<Border>> _nativeTaskRows = new();
@@ -221,49 +222,428 @@ public partial class MainPage : ContentPage
 
     private async void SettingsButton_Clicked(object? sender, EventArgs e)
     {
-        var selected = await ShowChoicePopupAsync(
+        var completion = BeginPopup(
             "Settings",
             "Manage your app theme, language, custom wallpaper and app information.",
-            new[] { "Theme", "Language", "Background image", "About" },
-            cancelLabel: "Close",
-            icons: new[] { "◐", "Aa", "▧", "!" },
-            popupIcon: "settings");
+            "settings");
 
-        switch (selected)
+        // Settings is a single persistent modal. Sub-pages replace its content instead
+        // of completing this popup and opening another one on top of it.
+        ModalCard.MinimumHeightRequest = Math.Min(420d, ModalCard.MaximumHeightRequest);
+        await NavigateSettingsPageAsync("Settings", animate: false);
+        await completion.Task;
+    }
+
+    private async Task NavigateSettingsPageAsync(
+        string page,
+        bool animate = true,
+        bool reverse = false,
+        Action? beforeRender = null)
+    {
+        if (_popupCompletionSource is null || _settingsTransitionRunning)
+            return;
+
+        _settingsTransitionRunning = true;
+        try
         {
-            case "Theme":
-                await ShowThemeSettingsAsync();
-                break;
-            case "Language":
-                await ShowLanguageSettingsAsync();
-                break;
-            case "Background image":
-                await ShowWallpaperBackgroundSettingsAsync();
-                break;
-            case "About":
-                await ShowAboutPopupAsync();
-                break;
+            var rtlSign = LocalizationService.IsPersian ? -1d : 1d;
+            var exitX = (reverse ? 1d : -1d) * rtlSign * 18d;
+            var enterX = -exitX;
+
+            if (animate)
+            {
+                await Task.WhenAll(
+                    ModalBodyScroll.FadeTo(0, 90, Easing.CubicIn),
+                    ModalButtons.FadeTo(0, 90, Easing.CubicIn),
+                    ModalBodyScroll.TranslateTo(exitX, 0, 90, Easing.CubicIn),
+                    ModalButtons.TranslateTo(exitX, 0, 90, Easing.CubicIn));
+
+                // The user may close the modal during the short transition.
+                if (_popupCompletionSource is null)
+                    return;
+            }
+
+            beforeRender?.Invoke();
+            ModalBody.Children.Clear();
+            ModalButtons.Children.Clear();
+            ModalBody.FlowDirection = LocalizationService.CurrentFlowDirection;
+            ModalBodyScroll.FlowDirection = LocalizationService.CurrentFlowDirection;
+            ModalButtons.FlowDirection = LocalizationService.CurrentFlowDirection;
+
+            ConfigureSettingsPopupHeader(page);
+            switch (page)
+            {
+                case "Settings":
+                    RenderSettingsHome();
+                    break;
+                case "Theme":
+                    RenderThemeSettings();
+                    break;
+                case "Language":
+                    RenderLanguageSettings();
+                    break;
+                case "Background image":
+                    RenderWallpaperBackgroundSettings();
+                    break;
+                case "About":
+                    RenderAboutSettings();
+                    break;
+                default:
+                    RenderSettingsHome();
+                    ConfigureSettingsPopupHeader("Settings");
+                    break;
+            }
+
+            _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
+            if (!animate)
+            {
+                ModalBodyScroll.Opacity = 1;
+                ModalButtons.Opacity = 1;
+                ModalBodyScroll.TranslationX = 0;
+                ModalButtons.TranslationX = 0;
+                return;
+            }
+
+            ModalBodyScroll.Opacity = 0;
+            ModalButtons.Opacity = 0;
+            ModalBodyScroll.TranslationX = enterX;
+            ModalButtons.TranslationX = enterX;
+            await Task.WhenAll(
+                ModalBodyScroll.FadeTo(1, 170, Easing.CubicOut),
+                ModalButtons.FadeTo(1, 170, Easing.CubicOut),
+                ModalBodyScroll.TranslateTo(0, 0, 170, Easing.CubicOut),
+                ModalButtons.TranslateTo(0, 0, 170, Easing.CubicOut));
+        }
+        finally
+        {
+            _settingsTransitionRunning = false;
         }
     }
 
-    private async Task ShowThemeSettingsAsync()
+    private void ConfigureSettingsPopupHeader(string page)
+    {
+        var title = page switch
+        {
+            "Settings" => "Settings",
+            "Theme" => "Theme",
+            "Language" => "Language",
+            "Background image" => "Background image",
+            "About" => "About",
+            _ => "Settings"
+        };
+        var message = page switch
+        {
+            "Settings" => "Manage your app theme, language, custom wallpaper and app information.",
+            "Theme" => ThemeService.IsDarkMode()
+                ? "The dark theme is currently active."
+                : "The light theme is currently active.",
+            "Language" => "Choose your preferred language. English is the default.",
+            "Background image" => CustomWallpaperBackgroundService.GetExistingPath() is not null
+                ? "A custom background is currently active."
+                : "The default Locksy background is currently active.",
+            "About" => "Locksy keeps important tasks visible directly on your Android lock screen. Customize task colors, reminders, theme, layout and background image. Your task list is stored locally on this device.",
+            _ => string.Empty
+        };
+        var icon = page switch
+        {
+            "Settings" => "settings",
+            "Theme" => "◐",
+            "Language" => "Aa",
+            "Background image" => "▧",
+            "About" => "!",
+            _ => "settings"
+        };
+
+        ModalSectionLabel.Text = LocalizationService.Translate("LOCKSY · SETTINGS");
+        // Theme changes happen while this popup remains open, so refresh its manually
+        // assigned surface colors as well as the dynamically-themed page beneath it.
+        ModalCard.BackgroundColor = PopupColor("#F0F2F8", "#252736");
+        ModalCard.Stroke = new SolidColorBrush(PopupColor("#CDD5E2", "#383A4D"));
+        ModalTitle.Text = LocalizationService.Translate(title);
+        ModalMessage.Text = LocalizationService.Translate(message);
+        ModalMessage.TextColor = PopupColor("#6F7589", "#ADB2C8");
+        ModalMessage.IsVisible = !string.IsNullOrWhiteSpace(message);
+
+        var useSettingsIcon = string.Equals(icon, "settings", StringComparison.OrdinalIgnoreCase);
+        ModalIconImage.IsVisible = useSettingsIcon;
+        ModalIconLabel.IsVisible = !useSettingsIcon;
+        if (useSettingsIcon)
+        {
+            ModalIconImage.Source = ImageSource.FromFile("settings_gear.svg");
+            ModalIconImage.WidthRequest = 28;
+            ModalIconImage.HeightRequest = 28;
+        }
+        else
+        {
+            ModalIconLabel.Text = icon;
+            ModalIconLabel.FontSize = icon == "Aa" ? 17 : 22;
+        }
+    }
+
+    private void RenderSettingsHome()
+    {
+        var backgroundSubtitle = CustomWallpaperBackgroundService.GetExistingPath() is not null
+            ? "A custom background is currently active."
+            : "The default Locksy background is currently active.";
+
+        AddSettingsOption("Theme", "Choose the app's light or dark appearance.", "◐",
+            () => NavigateSettingsPageAsync("Theme"));
+        AddSettingsOption("Language", "Choose English or Persian for the app.", "Aa",
+            () => NavigateSettingsPageAsync("Language"));
+        AddSettingsOption("Background image", backgroundSubtitle, "▧",
+            () => NavigateSettingsPageAsync("Background image"));
+        AddSettingsOption("About", "App information and project source code.", "!",
+            () => NavigateSettingsPageAsync("About"));
+        BuildSettingsFooter(isHome: true);
+    }
+
+    private void RenderThemeSettings()
     {
         var isDark = ThemeService.IsDarkMode();
-        var message = isDark
-            ? "The dark theme is currently active."
-            : "The light theme is currently active.";
-        var selected = await ShowChoicePopupAsync(
-            "Theme",
-            message,
-            new[] { "Light theme", "Dark theme" },
-            cancelLabel: "Cancel",
-            icons: new[] { "☼", "☾" },
-            popupIcon: "settings");
+        AddSettingsOption("Light theme", "A light surface with dark text.", "☼",
+            async () =>
+            {
+                if (ThemeService.IsDarkMode())
+                    await NavigateSettingsPageAsync("Theme", animate: true, beforeRender: () => ApplyThemePreference(ThemePreference.Light));
+            }, isSelected: !isDark);
+        AddSettingsOption("Dark theme", "A dark surface for low-light use.", "☾",
+            async () =>
+            {
+                if (!ThemeService.IsDarkMode())
+                    await NavigateSettingsPageAsync("Theme", animate: true, beforeRender: () => ApplyThemePreference(ThemePreference.Dark));
+            }, isSelected: isDark);
+        BuildSettingsFooter(isHome: false);
+    }
 
-        if (selected == "Light theme")
-            ApplyThemePreference(ThemePreference.Light);
-        else if (selected == "Dark theme")
-            ApplyThemePreference(ThemePreference.Dark);
+    private void RenderLanguageSettings()
+    {
+        var isPersian = LocalizationService.IsPersian;
+        AddSettingsOption("English", "Use the default English interface.", "EN",
+            async () =>
+            {
+                if (LocalizationService.IsPersian)
+                    await NavigateSettingsPageAsync("Language", animate: true, reverse: false, beforeRender: () =>
+                    {
+                        LocalizationService.SetLanguage("en");
+                        ApplyLocalization();
+                    });
+            }, isSelected: !isPersian);
+        AddSettingsOption("فارسی", "Use the Persian right-to-left interface.", "فا",
+            async () =>
+            {
+                if (!LocalizationService.IsPersian)
+                    await NavigateSettingsPageAsync("Language", animate: true, reverse: false, beforeRender: () =>
+                    {
+                        LocalizationService.SetLanguage("fa");
+                        ApplyLocalization();
+                    });
+            }, isSelected: isPersian);
+        BuildSettingsFooter(isHome: false);
+    }
+
+    private void RenderWallpaperBackgroundSettings()
+    {
+        AddSettingsOption("Choose image", "Select a personal image from this device.", "▧",
+            PickCustomBackgroundWithinSettingsAsync);
+        AddSettingsOption("Remove custom background", "Restore the built-in Locksy background.", "×",
+            RemoveCustomBackgroundWithinSettingsAsync);
+        BuildSettingsFooter(isHome: false);
+    }
+
+    private async Task PickCustomBackgroundWithinSettingsAsync()
+    {
+        try
+        {
+            var file = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = LocalizationService.Translate("Select a background image"),
+                FileTypes = FilePickerFileType.Images
+            });
+            if (file is null)
+            {
+                StatusLabel.Text = LocalizationService.Translate("No image was selected.");
+                return;
+            }
+
+            await CustomWallpaperBackgroundService.SaveAsync(file);
+            StatusLabel.Text = LocalizationService.Translate(AutoApplySwitch.IsToggled
+                ? "Background image saved. It will be applied when Locksy moves to the background."
+                : "Background image saved. Tap Apply wallpaper to see it on your lock screen.");
+            ScheduleAutoApply();
+            await NavigateSettingsPageAsync("Background image", animate: true);
+        }
+        catch (Exception ex)
+        {
+            var error = ex.Message.Contains("25 MB", StringComparison.OrdinalIgnoreCase)
+                ? "Please select an image smaller than 25 MB."
+                : "The selected image could not be saved.";
+            ModalMessage.Text = LocalizationService.Translate(error);
+            ModalMessage.TextColor = Color.FromArgb("#D45C72");
+            ModalMessage.IsVisible = true;
+        }
+    }
+
+    private async Task RemoveCustomBackgroundWithinSettingsAsync()
+    {
+        if (CustomWallpaperBackgroundService.GetExistingPath() is null)
+            return;
+
+        CustomWallpaperBackgroundService.Clear();
+        StatusLabel.Text = LocalizationService.Translate(AutoApplySwitch.IsToggled
+            ? "Custom background removed. The built-in background will be restored when Locksy moves to the background."
+            : "Custom background removed. Tap Apply wallpaper to update your lock screen.");
+        ScheduleAutoApply();
+        await NavigateSettingsPageAsync("Background image", animate: true);
+    }
+
+    private void RenderAboutSettings()
+    {
+        ModalBody.Children.Add(new Label
+        {
+            Text = $"{LocalizationService.Translate("Version")} {LocalizationService.LocalizeDigits(AppInfo.Current.VersionString)}",
+            FontSize = 12,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#625B7A", "#D9D4F0"),
+            Margin = new Thickness(1, 2, 1, 2)
+        });
+
+        var repositoryLink = new Label
+        {
+            Text = ProjectGitHubUrl,
+            FontSize = 11.5,
+            TextColor = Color.FromArgb("#8A76EB"),
+            TextDecorations = TextDecorations.Underline,
+            LineBreakMode = LineBreakMode.WordWrap,
+            FlowDirection = Microsoft.Maui.FlowDirection.LeftToRight,
+            HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Start,
+            Margin = new Thickness(1, 0, 1, 4)
+        };
+        var repositoryTap = new TapGestureRecognizer();
+        repositoryTap.Tapped += async (_, _) => await OpenGitHubFromSettingsAsync();
+        repositoryLink.GestureRecognizers.Add(repositoryTap);
+        ModalBody.Children.Add(repositoryLink);
+        AddSettingsOption("Open GitHub repository", "View the Locksy source code on GitHub.", "↗",
+            OpenGitHubFromSettingsAsync);
+        BuildSettingsFooter(isHome: false);
+    }
+
+    private async Task OpenGitHubFromSettingsAsync()
+    {
+        try
+        {
+            await Launcher.Default.OpenAsync(new Uri(ProjectGitHubUrl));
+        }
+        catch
+        {
+            ModalMessage.Text = LocalizationService.Translate("Could not open GitHub") + "\n" +
+                                LocalizationService.Translate("Please check your internet connection and try again.");
+            ModalMessage.TextColor = Color.FromArgb("#D45C72");
+            ModalMessage.IsVisible = true;
+        }
+    }
+
+    private void AddSettingsOption(
+        string title,
+        string subtitle,
+        string icon,
+        Func<Task> onSelected,
+        bool isSelected = false)
+    {
+        var row = new Grid
+        {
+            ColumnSpacing = 11,
+            Padding = new Thickness(10, 9),
+            VerticalOptions = LayoutOptions.Fill
+        };
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(38)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(18)));
+
+        var iconLabel = new Label
+        {
+            Text = icon,
+            FontSize = icon is "EN" or "فا" or "Aa" ? 14 : 18,
+            FontAttributes = icon == "!" ? FontAttributes.Bold : FontAttributes.None,
+            TextColor = isSelected ? Colors.White : Color.FromArgb("#8A76EB"),
+            HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
+            VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
+        };
+        row.Add(new Border
+        {
+            WidthRequest = 36,
+            HeightRequest = 36,
+            BackgroundColor = isSelected ? Color.FromArgb("#8875E8") : PopupColor("#E2E7F1", "#2A2C3D"),
+            Stroke = new SolidColorBrush(isSelected ? Color.FromArgb("#8875E8") : PopupColor("#D1D9E5", "#383A4D")),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+            Content = iconLabel,
+            VerticalOptions = LayoutOptions.Center
+        }, 0, 0);
+
+        var titleLabel = new Label
+        {
+            Text = LocalizationService.Translate(title),
+            FontSize = 13,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#3F4559", "#E5E7F5"),
+            LineBreakMode = LineBreakMode.WordWrap
+        };
+        var subtitleLabel = new Label
+        {
+            Text = LocalizationService.Translate(subtitle),
+            FontSize = 10.5,
+            TextColor = PopupColor("#7E8599", "#9FA5BC"),
+            LineBreakMode = LineBreakMode.WordWrap
+        };
+        var labels = new VerticalStackLayout { Spacing = 3, VerticalOptions = LayoutOptions.Center };
+        labels.Children.Add(titleLabel);
+        labels.Children.Add(subtitleLabel);
+        row.Add(labels, 1, 0);
+        row.Add(new Label
+        {
+            Text = isSelected ? "✓" : (LocalizationService.IsPersian ? "‹" : "›"),
+            FontSize = isSelected ? 17 : 22,
+            FontAttributes = isSelected ? FontAttributes.Bold : FontAttributes.None,
+            TextColor = isSelected ? Color.FromArgb("#8A76EB") : PopupColor("#A29AB7", "#9189A8"),
+            HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
+            VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
+        }, 2, 0);
+
+        var border = new Border
+        {
+            BackgroundColor = isSelected ? PopupColor("#E6E0FF", "#332D49") : PopupColor("#F0F2F8", "#252736"),
+            Stroke = new SolidColorBrush(isSelected ? Color.FromArgb("#AA9AF2") : PopupColor("#D1D9E5", "#383A4D")),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(15) },
+            Shadow = CreateNeumorphicShadow(isSelected ? 0.45f : 0.30f),
+            Content = row
+        };
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, _) =>
+        {
+            if (_settingsTransitionRunning || _popupCompletionSource is null)
+                return;
+            await onSelected();
+        };
+        border.GestureRecognizers.Add(tap);
+        ModalBody.Children.Add(border);
+    }
+
+    private void BuildSettingsFooter(bool isHome)
+    {
+        if (isHome)
+        {
+            ModalButtons.Children.Add(CreatePopupAction("Close", null, primary: false, destructive: false));
+            return;
+        }
+
+        var actions = new Grid { ColumnSpacing = 9 };
+        actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        actions.Add(CreatePopupAction("Back to settings", null, primary: false, destructive: false,
+            customAction: async () => await NavigateSettingsPageAsync("Settings", animate: true, reverse: true)), 0, 0);
+        actions.Add(CreatePopupAction("Close", null, primary: true, destructive: false), 1, 0);
+        ModalButtons.Children.Add(actions);
     }
 
     private void ApplyThemePreference(ThemePreference preference)
@@ -278,128 +658,6 @@ public partial class MainPage : ContentPage
             : "Light theme selected.";
         StatusLabel.Text = LocalizationService.Translate(status);
         ScheduleAutoApply();
-    }
-
-    private async Task ShowLanguageSettingsAsync()
-    {
-        var selected = await ShowChoicePopupAsync(
-            "Language",
-            "Choose your preferred language. English is the default.",
-            new[] { "English", "فارسی" },
-            cancelLabel: "Cancel",
-            icons: new[] { "EN", "فا" },
-            popupIcon: "Aa");
-        if (selected is not ("English" or "فارسی")) return;
-
-        LocalizationService.SetLanguage(selected == "فارسی" ? "fa" : "en");
-        ApplyLocalization();
-        StatusLabel.Text = LocalizationService.Translate("Language updated.");
-    }
-
-    private async Task ShowWallpaperBackgroundSettingsAsync()
-    {
-        var hasCustomBackground = CustomWallpaperBackgroundService.GetExistingPath() is not null;
-        var message = hasCustomBackground
-            ? "A custom background is currently active."
-            : "The default Locksy background is currently active.";
-        var selected = await ShowChoicePopupAsync(
-            "Background image",
-            message,
-            new[] { "Choose image", "Remove custom background" },
-            cancelLabel: "Cancel",
-            icons: new[] { "▧", "×" },
-            popupIcon: "▧");
-
-        if (selected == "Choose image")
-        {
-            try
-            {
-                var file = await FilePicker.Default.PickAsync(new PickOptions
-                {
-                    PickerTitle = LocalizationService.Translate("Select a background image"),
-                    FileTypes = FilePickerFileType.Images
-                });
-                if (file is null)
-                {
-                    StatusLabel.Text = LocalizationService.Translate("No image was selected.");
-                    return;
-                }
-
-                await CustomWallpaperBackgroundService.SaveAsync(file);
-                StatusLabel.Text = LocalizationService.Translate(AutoApplySwitch.IsToggled
-                    ? "Background image saved. It will be applied when Locksy moves to the background."
-                    : "Background image saved. Tap Apply wallpaper to see it on your lock screen.");
-                ScheduleAutoApply();
-            }
-            catch (Exception ex)
-            {
-                var messageText = ex.Message.Contains("25 MB", StringComparison.OrdinalIgnoreCase)
-                    ? LocalizationService.Translate("Please select an image smaller than 25 MB.")
-                    : LocalizationService.Translate("The selected image could not be saved.");
-                await ShowInfoPopupAsync("Could not save image", messageText, isError: true);
-            }
-        }
-        else if (selected == "Remove custom background")
-        {
-            CustomWallpaperBackgroundService.Clear();
-            StatusLabel.Text = LocalizationService.Translate(AutoApplySwitch.IsToggled
-                ? "Custom background removed. The built-in background will be restored when Locksy moves to the background."
-                : "Custom background removed. Tap Apply wallpaper to update your lock screen.");
-            ScheduleAutoApply();
-        }
-    }
-
-    private async Task ShowAboutPopupAsync()
-    {
-        var completion = BeginPopup("About", "Locksy keeps important tasks visible directly on your Android lock screen. Customize task colors, reminders, theme, layout and background image. Your task list is stored locally on this device.", "!");
-        ModalBody.Children.Add(new Label
-        {
-            Text = $"{LocalizationService.Translate("Version")} {LocalizationService.LocalizeDigits(AppInfo.Current.VersionString)}",
-            FontSize = 12,
-            FontAttributes = FontAttributes.Bold,
-            TextColor = PopupColor("#625B7A", "#D9D4F0"),
-            Margin = new Thickness(1, 2, 1, 2)
-        });
-        var repositoryLink = new Label
-        {
-            Text = ProjectGitHubUrl,
-            FontSize = 11.5,
-            TextColor = Color.FromArgb("#8A76EB"),
-            TextDecorations = TextDecorations.Underline,
-            LineBreakMode = LineBreakMode.WordWrap,
-            FlowDirection = Microsoft.Maui.FlowDirection.LeftToRight,
-            HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Start
-        };
-        var repositoryTap = new TapGestureRecognizer();
-        repositoryTap.Tapped += async (_, _) =>
-        {
-            try
-            {
-                await Launcher.Default.OpenAsync(new Uri(ProjectGitHubUrl));
-            }
-            catch
-            {
-                await ShowInfoPopupAsync("Could not open GitHub", "Please check your internet connection and try again.", isError: true);
-            }
-        };
-        repositoryLink.GestureRecognizers.Add(repositoryTap);
-        ModalBody.Children.Add(repositoryLink);
-
-        ModalButtons.Children.Add(CreatePopupAction("Close", null, primary: false, destructive: false));
-        ModalButtons.Children.Add(CreatePopupAction("Open GitHub", "__OPEN_GITHUB__", primary: true, destructive: false,
-            customAction: async () =>
-            {
-                CompletePopup("__OPEN_GITHUB__");
-                try
-                {
-                    await Launcher.Default.OpenAsync(new Uri(ProjectGitHubUrl));
-                }
-                catch
-                {
-                    await ShowInfoPopupAsync("Could not open GitHub", "Please check your internet connection and try again.", isError: true);
-                }
-            }));
-        await completion.Task;
     }
 
     private async void AddTaskEntry_Completed(object? sender, EventArgs e)
@@ -2092,8 +2350,14 @@ public partial class MainPage : ContentPage
         ModalCard.MaximumWidthRequest = 380;
         ModalCard.MaximumHeightRequest = Math.Max(280d, Height - 56d);
         ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 140d, 300d);
+        ModalCard.MinimumHeightRequest = -1;
+        ModalBodyScroll.Opacity = 1;
+        ModalButtons.Opacity = 1;
+        ModalBodyScroll.TranslationX = 0;
+        ModalButtons.TranslationX = 0;
         ModalTitle.Text = LocalizationService.Translate(title);
         ModalMessage.Text = LocalizationService.Translate(message);
+        ModalMessage.TextColor = PopupColor("#6F7589", "#ADB2C8");
         ModalMessage.IsVisible = !string.IsNullOrWhiteSpace(message);
         var useOptionsIcon = string.Equals(icon, "options", StringComparison.OrdinalIgnoreCase);
         var useAlarmIcon = string.Equals(icon, "alarm", StringComparison.OrdinalIgnoreCase)
@@ -2453,6 +2717,11 @@ public partial class MainPage : ContentPage
         ModalOverlay.Opacity = 0;
         PageContent.InputTransparent = false;
         ModalCard.Scale = 0.96;
+        ModalCard.MinimumHeightRequest = -1;
+        ModalBodyScroll.Opacity = 1;
+        ModalButtons.Opacity = 1;
+        ModalBodyScroll.TranslationX = 0;
+        ModalButtons.TranslationX = 0;
         ModalBody.Children.Clear();
         ModalButtons.Children.Clear();
         var completion = _popupCompletionSource;
