@@ -21,6 +21,8 @@ public partial class MainPage : ContentPage
     private const string LastWallpaperOperationPreferenceKey = "locksy-last-wallpaper-operation-utc-ticks";
     private const string AutoApplyPendingPreferenceKey = "locksy-auto-apply-pending";
     private const string AutoApplyQueuedStatus = "Auto update queued for background.";
+    // Official Locksy source repository.
+    private const string ProjectGitHubUrl = "https://github.com/Mohsen-Arshad/Locksy";
 
     private readonly MainViewModel _viewModel;
     private readonly IWallpaperService _wallpaperService;
@@ -88,6 +90,7 @@ public partial class MainPage : ContentPage
     {
         InitializeComponent();
         NavigationPage.SetHasNavigationBar(this, false);
+        ApplyLocalization();
         // Keep the themed page surface visible during navigation. Only the content grid
         // starts transparent, so the native page transition never reveals a black window.
         Opacity = 1;
@@ -123,7 +126,7 @@ public partial class MainPage : ContentPage
         _initializing = false;
 
         if (_autoApplyPending)
-            StatusLabel.Text = AutoApplyQueuedStatus;
+            StatusLabel.Text = LocalizationService.Translate(AutoApplyQueuedStatus);
 
         _viewModel.TasksChanged += OnTasksChanged;
 #if ANDROID
@@ -174,7 +177,7 @@ public partial class MainPage : ContentPage
     public void CompleteStartupTransition()
     {
         if (_autoApplyPending)
-            StatusLabel.Text = AutoApplyQueuedStatus;
+            StatusLabel.Text = LocalizationService.Translate(AutoApplyQueuedStatus);
     }
 
     public void PrepareForStartupReveal() => PageContent.Opacity = 0;
@@ -186,6 +189,190 @@ public partial class MainPage : ContentPage
     {
         Opacity = 1;
         PageContent.Opacity = 1;
+    }
+
+    private void ApplyLocalization()
+    {
+        FlowDirection = LocalizationService.CurrentFlowDirection;
+        PageContent.FlowDirection = FlowDirection;
+        ModalOverlay.FlowDirection = FlowDirection;
+
+        HeaderTaglineLabel.Text = LocalizationService.Translate("Keep what matters in sight.");
+        NewTaskEntry.Placeholder = LocalizationService.Translate("Add a task...");
+        AddTaskButton.Text = LocalizationService.Translate("＋ Add");
+        EmptyListTitleLabel.Text = LocalizationService.Translate("Your list is clear");
+        EmptyListDescriptionLabel.Text = LocalizationService.Translate("Add your first task. It will be saved on this device.");
+        ClockLayoutCaption.Text = LocalizationService.Translate("Clock layout");
+        AutoApplyCaption.Text = LocalizationService.Translate("Auto update");
+        AutoApplyDescriptionLabel.Text = LocalizationService.Translate("Apply edits when app is in background");
+        ClearCompletedButton.Text = LocalizationService.Translate("Clear completed");
+        ApplyBusyLabelRefresh();
+        FirstEightLabel.Text = LocalizationService.Translate("First 8 tasks on wallpaper");
+        DragGhostTitle.Text = LocalizationService.Translate("Moving task");
+        ModalSectionLabel.Text = LocalizationService.Translate("LOCKSY  ·  QUICK ACTION");
+        SemanticProperties.SetDescription(ThemeToggleBorder, LocalizationService.Translate("Switch between dark and light theme"));
+        SemanticProperties.SetDescription(SettingsButton, LocalizationService.Translate("Open application settings"));
+        SemanticProperties.SetDescription(NewTaskSettingsButton, LocalizationService.Translate("New reminder settings"));
+        SemanticProperties.SetDescription(AutoApplySwitch, LocalizationService.Translate("Automatically refresh wallpaper after task edits"));
+        UpdateThemeToggleVisual(_themeToggleIsDark);
+        UpdateClockLayoutSummary();
+
+        if (_autoApplyPending)
+            StatusLabel.Text = LocalizationService.Translate(AutoApplyQueuedStatus);
+        else if (StatusLabel.Text == "Ready · Drag ⠿ to reorder" || string.IsNullOrWhiteSpace(StatusLabel.Text))
+            StatusLabel.Text = LocalizationService.Translate("Ready · Drag ⠿ to reorder");
+    }
+
+    private void ApplyBusyLabelRefresh()
+    {
+        ApplyButton.Text = _isApplying ? string.Empty : LocalizationService.Translate("Apply wallpaper");
+        ApplyingLabel.Text = LocalizationService.Translate("Applying…");
+    }
+
+    private async void SettingsButton_Clicked(object? sender, EventArgs e)
+    {
+        var selected = await ShowChoicePopupAsync(
+            "Settings",
+            "Manage your app language, custom wallpaper and app information.",
+            new[] { "Language", "Background image", "About" },
+            cancelLabel: "Close",
+            icons: new[] { "Aa", "▧", "!" },
+            popupIcon: "settings");
+
+        switch (selected)
+        {
+            case "Language":
+                await ShowLanguageSettingsAsync();
+                break;
+            case "Background image":
+                await ShowWallpaperBackgroundSettingsAsync();
+                break;
+            case "About":
+                await ShowAboutPopupAsync();
+                break;
+        }
+    }
+
+    private async Task ShowLanguageSettingsAsync()
+    {
+        var selected = await ShowChoicePopupAsync(
+            "Language",
+            "Choose your preferred language. English is the default.",
+            new[] { "English", "فارسی" },
+            cancelLabel: "Cancel",
+            icons: new[] { "EN", "فا" },
+            popupIcon: "Aa");
+        if (selected is not ("English" or "فارسی")) return;
+
+        LocalizationService.SetLanguage(selected == "فارسی" ? "fa" : "en");
+        ApplyLocalization();
+        StatusLabel.Text = LocalizationService.Translate("Language updated.");
+    }
+
+    private async Task ShowWallpaperBackgroundSettingsAsync()
+    {
+        var hasCustomBackground = CustomWallpaperBackgroundService.GetExistingPath() is not null;
+        var message = hasCustomBackground
+            ? "A custom background is currently active."
+            : "The default Locksy background is currently active.";
+        var selected = await ShowChoicePopupAsync(
+            "Background image",
+            message,
+            new[] { "Choose image", "Remove custom background" },
+            cancelLabel: "Cancel",
+            icons: new[] { "▧", "×" },
+            popupIcon: "▧");
+
+        if (selected == "Choose image")
+        {
+            try
+            {
+                var file = await FilePicker.Default.PickAsync(new PickOptions
+                {
+                    PickerTitle = LocalizationService.Translate("Select a background image"),
+                    FileTypes = FilePickerFileType.Images
+                });
+                if (file is null)
+                {
+                    StatusLabel.Text = LocalizationService.Translate("No image was selected.");
+                    return;
+                }
+
+                await CustomWallpaperBackgroundService.SaveAsync(file);
+                StatusLabel.Text = LocalizationService.Translate(AutoApplySwitch.IsToggled
+                    ? "Background image saved. It will be applied when Locksy moves to the background."
+                    : "Background image saved. Tap Apply wallpaper to see it on your lock screen.");
+                ScheduleAutoApply();
+            }
+            catch (Exception ex)
+            {
+                var messageText = ex.Message.Contains("25 MB", StringComparison.OrdinalIgnoreCase)
+                    ? LocalizationService.Translate("Please select an image smaller than 25 MB.")
+                    : LocalizationService.Translate("The selected image could not be saved.");
+                await ShowInfoPopupAsync("Could not save image", messageText, isError: true);
+            }
+        }
+        else if (selected == "Remove custom background")
+        {
+            CustomWallpaperBackgroundService.Clear();
+            StatusLabel.Text = LocalizationService.Translate(AutoApplySwitch.IsToggled
+                ? "Custom background removed. The built-in background will be restored when Locksy moves to the background."
+                : "Custom background removed. Tap Apply wallpaper to update your lock screen.");
+            ScheduleAutoApply();
+        }
+    }
+
+    private async Task ShowAboutPopupAsync()
+    {
+        var completion = BeginPopup("About", "Locksy keeps important tasks visible directly on your Android lock screen. Customize task colors, reminders, theme, layout and background image. Your task list is stored locally on this device.", "!");
+        ModalBody.Children.Add(new Label
+        {
+            Text = $"{LocalizationService.Translate("Version")} {LocalizationService.LocalizeDigits(AppInfo.Current.VersionString)}",
+            FontSize = 12,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#625B7A", "#D9D4F0"),
+            Margin = new Thickness(1, 2, 1, 2)
+        });
+        var repositoryLink = new Label
+        {
+            Text = ProjectGitHubUrl,
+            FontSize = 11.5,
+            TextColor = Color.FromArgb("#8A76EB"),
+            TextDecorations = TextDecorations.Underline,
+            LineBreakMode = LineBreakMode.WordWrap,
+            FlowDirection = Microsoft.Maui.FlowDirection.LeftToRight,
+            HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Start
+        };
+        var repositoryTap = new TapGestureRecognizer();
+        repositoryTap.Tapped += async (_, _) =>
+        {
+            try
+            {
+                await Launcher.Default.OpenAsync(new Uri(ProjectGitHubUrl));
+            }
+            catch
+            {
+                await ShowInfoPopupAsync("Could not open GitHub", "Please check your internet connection and try again.", isError: true);
+            }
+        };
+        repositoryLink.GestureRecognizers.Add(repositoryTap);
+        ModalBody.Children.Add(repositoryLink);
+
+        ModalButtons.Children.Add(CreatePopupAction("Close", null, primary: false, destructive: false));
+        ModalButtons.Children.Add(CreatePopupAction("Open GitHub", "__OPEN_GITHUB__", primary: true, destructive: false,
+            customAction: async () =>
+            {
+                CompletePopup("__OPEN_GITHUB__");
+                try
+                {
+                    await Launcher.Default.OpenAsync(new Uri(ProjectGitHubUrl));
+                }
+                catch
+                {
+                    await ShowInfoPopupAsync("Could not open GitHub", "Please check your internet connection and try again.", isError: true);
+                }
+            }));
+        await completion.Task;
     }
 
     private async void AddTaskEntry_Completed(object? sender, EventArgs e)
@@ -240,8 +427,10 @@ public partial class MainPage : ContentPage
                         _pendingNewTaskReminderEnabled = false;
                         _pendingNewTaskReminderAt = null;
                         StatusLabel.Text = created!.IsReminderActive
-                            ? $"Reminder added · alarm {created.ReminderAt:dd MMM, HH:mm}."
-                            : "Reminder added.";
+                            ? (LocalizationService.IsPersian
+                                ? LocalizationService.LocalizeDigits($"یادآور اضافه شد · زنگ {created.ReminderAt:yyyy/MM/dd HH:mm}")
+                                : $"Reminder added · alarm {created.ReminderAt:dd MMM, HH:mm}.")
+                            : LocalizationService.Translate("Reminder added.");
                     }
                 }
             }
@@ -268,7 +457,7 @@ public partial class MainPage : ContentPage
 
             // Refresh the queued message once the Add Task focus handoff is complete.
             if (_autoApplyPending && AutoApplySwitch.IsToggled && !_isApplying)
-                StatusLabel.Text = AutoApplyQueuedStatus;
+                StatusLabel.Text = LocalizationService.Translate(AutoApplyQueuedStatus);
         });
     }
 
@@ -300,7 +489,7 @@ public partial class MainPage : ContentPage
 
         ModalBody.Children.Add(new Label
         {
-            Text = "Reminder title",
+            Text = LocalizationService.Translate("Reminder title"),
             FontSize = 13,
             FontAttributes = FontAttributes.Bold,
             TextColor = PopupColor("#303545", "#F1F2FA")
@@ -308,7 +497,7 @@ public partial class MainPage : ContentPage
         var draftTitleEntry = new Entry
         {
             Text = initialTitle,
-            Placeholder = "What do you need to remember?",
+            Placeholder = LocalizationService.Translate("What do you need to remember?"),
             MaxLength = 300,
             ReturnType = ReturnType.Done,
             ClearButtonVisibility = ClearButtonVisibility.WhileEditing,
@@ -330,7 +519,7 @@ public partial class MainPage : ContentPage
 
         ModalBody.Children.Add(new Label
         {
-            Text = "Task color",
+            Text = LocalizationService.Translate("Task color"),
             FontSize = 13,
             FontAttributes = FontAttributes.Bold,
             TextColor = PopupColor("#303545", "#F1F2FA")
@@ -393,7 +582,7 @@ public partial class MainPage : ContentPage
             var palette = TodoPalette.Palettes[i];
             var label = new Label
             {
-                Text = palette.Name,
+                Text = LocalizationService.Translate(palette.Name),
                 FontSize = 10,
                 FontAttributes = FontAttributes.Bold,
                 HorizontalTextAlignment = TextAlignment.Center,
@@ -438,7 +627,7 @@ public partial class MainPage : ContentPage
             };
             var label = new Label
             {
-                Text = option.Name,
+                Text = LocalizationService.Translate(option.Name),
                 FontSize = 10.5,
                 VerticalTextAlignment = TextAlignment.Center,
                 LineBreakMode = LineBreakMode.TailTruncation,
@@ -482,7 +671,7 @@ public partial class MainPage : ContentPage
 
         var alarmTitle = new Label
         {
-            Text = "Reminder alarm",
+            Text = LocalizationService.Translate("Reminder alarm"),
             FontSize = 13,
             FontAttributes = FontAttributes.Bold,
             TextColor = PopupColor("#303545", "#F1F2FA"),
@@ -533,7 +722,7 @@ public partial class MainPage : ContentPage
         dateTimeGrid.Add(CreateReminderPickerBorder(timePicker), 1, 0);
         ModalBody.Children.Add(new Label
         {
-            Text = "Reminder date and time",
+            Text = LocalizationService.Translate("Reminder date and time"),
             FontSize = 11,
             TextColor = PopupColor("#777E92", "#A7ADC4")
         });
@@ -552,13 +741,13 @@ public partial class MainPage : ContentPage
         {
             if (alarmSwitch.IsToggled && (datePicker.Date.Date + timePicker.Time) <= DateTime.Now)
             {
-                ModalMessage.Text = "Choose a future date and time for the alarm.";
+                ModalMessage.Text = LocalizationService.Translate("Choose a future date and time for the alarm.");
                 ModalMessage.IsVisible = true;
                 return false;
             }
             if (adding && string.IsNullOrWhiteSpace(draftTitleEntry.Text))
             {
-                ModalMessage.Text = "Enter a reminder title before adding it.";
+                ModalMessage.Text = LocalizationService.Translate("Enter a reminder title before adding it.");
                 ModalMessage.IsVisible = true;
                 return false;
             }
@@ -596,7 +785,7 @@ public partial class MainPage : ContentPage
 
         if (result == "SAVE_SETTINGS")
         {
-            StatusLabel.Text = "Settings saved for the next reminder.";
+            StatusLabel.Text = LocalizationService.Translate("Settings saved for the next reminder.");
             return;
         }
 
@@ -634,7 +823,7 @@ public partial class MainPage : ContentPage
         // Keep queued work queued. Do not call WallpaperManager while the editor is in
         // the foreground, because affected OEMs can recreate the Activity during apply.
         if (_autoApplyPending && AutoApplySwitch.IsToggled && !_isSendingTaskToBackground)
-            StatusLabel.Text = AutoApplyQueuedStatus;
+            StatusLabel.Text = LocalizationService.Translate(AutoApplyQueuedStatus);
     }
 
     protected override bool OnBackButtonPressed()
@@ -672,9 +861,9 @@ public partial class MainPage : ContentPage
         if (currentActivity is not null)
             Android.Widget.Toast.MakeText(currentActivity, "Press back again to leave Locksy", Android.Widget.ToastLength.Short)?.Show();
         else
-            StatusLabel.Text = "Press back again to leave Locksy.";
+            StatusLabel.Text = LocalizationService.Translate("Press back again to leave Locksy.");
 #else
-        StatusLabel.Text = "Press back again to leave Locksy.";
+        StatusLabel.Text = LocalizationService.Translate("Press back again to leave Locksy.");
 #endif
         return true;
     }
@@ -685,7 +874,7 @@ public partial class MainPage : ContentPage
     {
         _isSendingTaskToBackground = false;
         if (_autoApplyPending && AutoApplySwitch.IsToggled)
-            StatusLabel.Text = AutoApplyQueuedStatus;
+            StatusLabel.Text = LocalizationService.Translate(AutoApplyQueuedStatus);
     }
 
     // Invoked by MainActivity.OnStop after the Activity has actually left the foreground.
@@ -705,7 +894,7 @@ public partial class MainPage : ContentPage
         {
             _autoApplyPending = true;
             Preferences.Default.Set(AutoApplyPendingPreferenceKey, true);
-            StatusLabel.Text = "Auto update queued for background.";
+            StatusLabel.Text = LocalizationService.Translate("Auto update queued for background.");
         }
     }
 
@@ -725,7 +914,7 @@ public partial class MainPage : ContentPage
     {
         var action = await ShowChoicePopupAsync(
             "Task options",
-            $"Choose what to do with ‘{task.Title}’. ",
+            "Choose what to do with a task.",
             new[] { "Edit task", "Change row color", "Set / edit alarm", "Delete task" },
             icons: new[] { "edit", "palette", "alarm", "trash" },
             popupIcon: "options");
@@ -744,7 +933,7 @@ public partial class MainPage : ContentPage
             case "Delete task":
                 var confirmed = await ShowConfirmationPopupAsync(
                     "Delete this task?",
-                    $"Remove ‘{task.Title}’ from your list? This can’t be undone.",
+                    (LocalizationService.IsPersian ? $"حذف «{task.Title}» از فهرست؟ این کار قابل بازگشت نیست." : $"Remove ‘{task.Title}’ from your list? This can’t be undone."),
                     "Delete task",
                     destructive: true);
                 if (confirmed) task.DeleteCommand?.Execute(null);
@@ -757,7 +946,7 @@ public partial class MainPage : ContentPage
         var value = await ShowPromptPopupAsync(
             "Edit task",
             "Make the change and save when you’re ready.",
-            placeholder: "Task text",
+            placeholder: LocalizationService.Translate("Task text"),
             maxLength: 300,
             initialValue: task.Title);
 
@@ -789,7 +978,7 @@ public partial class MainPage : ContentPage
         };
         var enableLabel = new Label
         {
-            Text = "Enable reminder",
+            Text = LocalizationService.Translate("Enable reminder"),
             FontSize = 14,
             FontAttributes = FontAttributes.Bold,
             TextColor = PopupColor("#303545", "#F1F2FA"),
@@ -828,7 +1017,7 @@ public partial class MainPage : ContentPage
         var timeBorder = CreateReminderPickerBorder(timePicker);
         ModalBody.Children.Add(new Label
         {
-            Text = "Reminder date",
+            Text = LocalizationService.Translate("Reminder date"),
             FontSize = 11,
             FontAttributes = FontAttributes.Bold,
             TextColor = PopupColor("#777E92", "#A7ADC4")
@@ -836,7 +1025,7 @@ public partial class MainPage : ContentPage
         ModalBody.Children.Add(dateBorder);
         ModalBody.Children.Add(new Label
         {
-            Text = "Reminder time",
+            Text = LocalizationService.Translate("Reminder time"),
             FontSize = 11,
             FontAttributes = FontAttributes.Bold,
             TextColor = PopupColor("#777E92", "#A7ADC4")
@@ -871,7 +1060,7 @@ public partial class MainPage : ContentPage
         {
             task.IsReminderEnabled = false;
             task.ReminderAt = null;
-            StatusLabel.Text = "Reminder disabled.";
+            StatusLabel.Text = LocalizationService.Translate("Reminder disabled.");
             return;
         }
 
@@ -889,11 +1078,13 @@ public partial class MainPage : ContentPage
         task.ReminderAt = scheduledAt;
         task.IsReminderEnabled = true;
 #if ANDROID
-        StatusLabel.Text = ReminderScheduler.CanUseExactAlarms()
-            ? $"Alarm set for {scheduledAt:dd MMM, HH:mm}."
-            : $"Alarm saved for {scheduledAt:dd MMM, HH:mm}; Android may deliver it a little late.";
+        StatusLabel.Text = LocalizationService.IsPersian
+            ? LocalizationService.LocalizeDigits($"زنگ برای {scheduledAt:yyyy/MM/dd HH:mm} تنظیم شد.")
+            : ReminderScheduler.CanUseExactAlarms()
+                ? $"Alarm set for {scheduledAt:dd MMM, HH:mm}."
+                : $"Alarm saved for {scheduledAt:dd MMM, HH:mm}; Android may deliver it a little late.";
 #else
-        StatusLabel.Text = $"Alarm set for {scheduledAt:dd MMM, HH:mm}.";
+        StatusLabel.Text = LocalizationService.IsPersian ? LocalizationService.LocalizeDigits($"زنگ برای {scheduledAt:yyyy/MM/dd HH:mm} تنظیم شد.") : $"Alarm set for {scheduledAt:dd MMM, HH:mm}.";
 #endif
     }
 
@@ -925,7 +1116,7 @@ public partial class MainPage : ContentPage
         if (option is null) return;
 
         _viewModel.ChangeColor(task, option.Key, paletteKey);
-        StatusLabel.Text = $"{option.Name} · {TodoPalette.GetPaletteName(paletteKey)} palette.";
+        StatusLabel.Text = LocalizationService.IsPersian ? $"{LocalizationService.Translate(option.Name)} · پالت {LocalizationService.Translate(TodoPalette.GetPaletteName(paletteKey))}" : $"{option.Name} · {TodoPalette.GetPaletteName(paletteKey)} palette.";
     }
 
     private Task<string?> ShowTaskPalettePopupAsync(TodoItem task)
@@ -960,7 +1151,7 @@ public partial class MainPage : ContentPage
             var palette = TodoPalette.Palettes[paletteIndex];
             var label = new Label
             {
-                Text = palette.Name,
+                Text = LocalizationService.Translate(palette.Name),
                 FontSize = 10.5,
                 FontAttributes = FontAttributes.Bold,
                 HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
@@ -1045,7 +1236,7 @@ public partial class MainPage : ContentPage
                 }, 0, 0);
                 row.Add(new Label
                 {
-                    Text = option.Name,
+                    Text = LocalizationService.Translate(option.Name),
                     FontSize = 13,
                     FontAttributes = selected ? FontAttributes.Bold : FontAttributes.None,
                     TextColor = PopupColor("#3F4559", "#E5E7F5"),
@@ -1171,11 +1362,11 @@ public partial class MainPage : ContentPage
                 if (didDrag && source is not null && target is not null && source.Id != target.Id)
                 {
                     _viewModel.MoveTask(source.Id, target.Id);
-                    StatusLabel.Text = $"Moved ‘{source.Title}’.";
+                    StatusLabel.Text = LocalizationService.IsPersian ? "جای کار تغییر کرد." : $"Moved ‘{source.Title}’.";
                 }
                 else if (didDrag)
                 {
-                    StatusLabel.Text = "Drop on another task to change its position.";
+                    StatusLabel.Text = LocalizationService.Translate("Drop on another task to change its position.");
                 }
 
                 _reorderCandidate = null;
@@ -1241,7 +1432,7 @@ public partial class MainPage : ContentPage
             }
         }
         grip.PerformHapticFeedback(Android.Views.FeedbackConstants.LongPress);
-        StatusLabel.Text = $"Moving ‘{task.Title}’ · release over a task to place it.";
+        StatusLabel.Text = LocalizationService.IsPersian ? $"در حال جابه‌جایی «{task.Title}» · برای ثبت، روی یک کار رها کن." : $"Moving ‘{task.Title}’ · release over a task to place it.";
     }
 
     private void UpdateDragGhostPosition(float rawX, float rawY)
@@ -1299,7 +1490,7 @@ public partial class MainPage : ContentPage
         ClearNativeDropTarget();
         if (target is null || targetBorder is null)
         {
-            StatusLabel.Text = "Move over another task to place it.";
+            StatusLabel.Text = LocalizationService.Translate("Move over another task to place it.");
             return;
         }
 
@@ -1311,7 +1502,7 @@ public partial class MainPage : ContentPage
         targetBorder.StrokeThickness = 2.5;
         targetBorder.Scale = 1.012;
         _reorderGripView?.PerformHapticFeedback(Android.Views.FeedbackConstants.KeyboardTap);
-        StatusLabel.Text = $"Drop on ‘{target.Title}’.";
+        StatusLabel.Text = LocalizationService.IsPersian ? $"روی «{target.Title}» رها کن." : $"Drop on ‘{target.Title}’.";
     }
 
     private Border? FindNativeRowForTask(TodoItem task)
@@ -1470,7 +1661,7 @@ public partial class MainPage : ContentPage
         MainActivity.RefreshNavigationBarTheme();
 #endif
         _viewModel.RefreshTaskAppearances();
-        StatusLabel.Text = _themeToggleIsDark ? "Dark theme selected." : "Light theme selected.";
+        StatusLabel.Text = LocalizationService.Translate(_themeToggleIsDark ? "Dark theme selected." : "Light theme selected.");
         ScheduleAutoApply();
     }
 
@@ -1484,7 +1675,7 @@ public partial class MainPage : ContentPage
         ThemeToggleBorder.BackgroundColor = surface;
         ThemeToggleBorder.Stroke = new SolidColorBrush(highlight);
         ThemeToggleBorder.Shadow = CreateNeumorphicShadow(0.72f);
-        ThemeToggleLabel.Text = isDark ? "DARK" : "LIGHT";
+        ThemeToggleLabel.Text = LocalizationService.Translate(isDark ? "DARK" : "LIGHT");
         ThemeToggleLabel.TextColor = text;
         MoonIconContainer.BackgroundColor = surface;
         MoonIconContainer.Stroke = new SolidColorBrush(highlight);
@@ -1550,7 +1741,7 @@ public partial class MainPage : ContentPage
 
         ModalBody.Children.Add(new Label
         {
-            Text = "PLACEMENT PROFILE",
+            Text = LocalizationService.Translate("PLACEMENT PROFILE"),
             FontSize = 10,
             CharacterSpacing = 1.0,
             FontAttributes = FontAttributes.Bold,
@@ -1580,7 +1771,7 @@ public partial class MainPage : ContentPage
                 StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(13) },
                 Content = new Label
                 {
-                    Text = option.Name,
+                    Text = LocalizationService.Translate(option.Name),
                     FontSize = 11,
                     FontAttributes = initiallySelected ? FontAttributes.Bold : FontAttributes.None,
                     TextColor = PopupColor("#3F4559", "#E5E7F5"),
@@ -1611,7 +1802,7 @@ public partial class MainPage : ContentPage
 
         var offsetTitle = new Label
         {
-            Text = "Move content up or down",
+            Text = LocalizationService.Translate("Move content up or down"),
             FontSize = 12,
             FontAttributes = FontAttributes.Bold,
             TextColor = PopupColor("#3F4559", "#E5E7F5"),
@@ -1638,13 +1829,13 @@ public partial class MainPage : ContentPage
         };
         var offsetUpLabel = new Label
         {
-            Text = $"↑ Up {Math.Max(0, (int)Math.Round(-candidateOffset * 100f))}%",
+            Text = FormatUpOffsetLabel(candidateOffset),
             FontSize = 9,
             TextColor = PopupColor("#7E8599", "#9FA5BC")
         };
         var offsetDownLabel = new Label
         {
-            Text = $"Down {Math.Max(0, (int)Math.Round(candidateOffset * 100f))}% ↓",
+            Text = FormatDownOffsetLabel(candidateOffset),
             FontSize = 9,
             TextColor = PopupColor("#7E8599", "#9FA5BC"),
             HorizontalTextAlignment = Microsoft.Maui.TextAlignment.End
@@ -1653,8 +1844,8 @@ public partial class MainPage : ContentPage
         {
             candidateOffset = (float)((args.NewValue - 20d) / 100d);
             offsetValue.Text = FormatOffsetLabel(candidateOffset);
-            offsetUpLabel.Text = $"↑ Up {Math.Max(0, (int)Math.Round(-candidateOffset * 100f))}%";
-            offsetDownLabel.Text = $"Down {Math.Max(0, (int)Math.Round(candidateOffset * 100f))}% ↓";
+            offsetUpLabel.Text = FormatUpOffsetLabel(candidateOffset);
+            offsetDownLabel.Text = FormatDownOffsetLabel(candidateOffset);
         };
         ModalBody.Children.Add(offsetSlider);
 
@@ -1665,7 +1856,7 @@ public partial class MainPage : ContentPage
 
         var clearanceTitle = new Label
         {
-            Text = "Empty space around clock",
+            Text = LocalizationService.Translate("Empty space around clock"),
             FontSize = 12,
             FontAttributes = FontAttributes.Bold,
             TextColor = PopupColor("#3F4559", "#E5E7F5"),
@@ -1673,7 +1864,7 @@ public partial class MainPage : ContentPage
         };
         var clearanceValue = new Label
         {
-            Text = $"{candidateClearance * 100:0}% of screen height",
+            Text = FormatClearanceLabel(candidateClearance),
             FontSize = 11,
             TextColor = Color.FromArgb("#8A76EB"),
             HorizontalTextAlignment = Microsoft.Maui.TextAlignment.End
@@ -1693,12 +1884,12 @@ public partial class MainPage : ContentPage
         clearanceSlider.ValueChanged += (_, args) =>
         {
             candidateClearance = (float)(args.NewValue / 100d);
-            clearanceValue.Text = $"{candidateClearance * 100:0}% of screen height";
+            clearanceValue.Text = FormatClearanceLabel(candidateClearance);
         };
         ModalBody.Children.Add(clearanceSlider);
         ModalBody.Children.Add(new Label
         {
-            Text = "Clock spacing applies mainly to Split around center clock. Offset moves the wallpaper content and its clear area together.",
+            Text = LocalizationService.Translate("Clock spacing applies mainly to Split around center clock. Offset moves the wallpaper content and its clear area together."),
             FontSize = 10,
             LineBreakMode = LineBreakMode.WordWrap,
             TextColor = PopupColor("#7E8599", "#9FA5BC")
@@ -1721,26 +1912,37 @@ public partial class MainPage : ContentPage
         Preferences.Default.Set(VerticalOffsetPreferenceKey, _verticalOffset);
         Preferences.Default.Set(ClockClearancePreferenceKey, _clockClearance);
         UpdateClockLayoutSummary();
-        StatusLabel.Text = "Wallpaper placement saved.";
+        StatusLabel.Text = LocalizationService.Translate("Wallpaper placement saved.");
         ScheduleAutoApply();
     }
 
     private static string FormatOffsetLabel(float offset)
     {
         var percent = (int)Math.Round(offset * 100f);
-        return percent switch
-        {
-            < 0 => $"{Math.Abs(percent)}% up",
-            > 0 => $"{percent}% down",
-            _ => "No offset"
-        };
+        if (LocalizationService.IsPersian)
+            return LocalizationService.LocalizeDigits(percent switch { < 0 => $"{Math.Abs(percent)}٪ به بالا", > 0 => $"{percent}٪ به پایین", _ => "بدون جابه‌جایی" });
+        return percent switch { < 0 => $"{Math.Abs(percent)}% up", > 0 => $"{percent}% down", _ => "No offset" };
     }
+
+    private static string FormatUpOffsetLabel(float offset) => LocalizationService.IsPersian
+        ? LocalizationService.LocalizeDigits($"↑ {Math.Max(0, (int)Math.Round(-offset * 100f))}٪ بالا")
+        : $"↑ Up {Math.Max(0, (int)Math.Round(-offset * 100f))}%";
+
+    private static string FormatDownOffsetLabel(float offset) => LocalizationService.IsPersian
+        ? LocalizationService.LocalizeDigits($"{Math.Max(0, (int)Math.Round(offset * 100f))}٪ پایین ↓")
+        : $"Down {Math.Max(0, (int)Math.Round(offset * 100f))}% ↓";
+
+    private static string FormatClearanceLabel(float clearance) => LocalizationService.IsPersian
+        ? LocalizationService.LocalizeDigits($"{clearance * 100:0}٪ از ارتفاع صفحه")
+        : $"{clearance * 100:0}% of screen height";
 
     private void UpdateClockLayoutSummary()
     {
-        var name = WallpaperLayoutNames[Math.Clamp(_selectedLayoutIndex, 0, WallpaperLayoutNames.Length - 1)];
+        var name = LocalizationService.Translate(WallpaperLayoutNames[Math.Clamp(_selectedLayoutIndex, 0, WallpaperLayoutNames.Length - 1)]);
         var offset = (int)Math.Round(_verticalOffset * 100f);
-        ClockLayoutValue.Text = offset == 0 ? name : $"{name} · {offset:+0;-0}%";
+        ClockLayoutValue.Text = LocalizationService.IsPersian
+            ? (offset == 0 ? name : LocalizationService.LocalizeDigits($"{name} · {offset:+0;-0}٪"))
+            : (offset == 0 ? name : $"{name} · {offset:+0;-0}%");
     }
 
     private void AutoApplySwitch_Toggled(object? sender, ToggledEventArgs e)
@@ -1752,13 +1954,13 @@ public partial class MainPage : ContentPage
         {
             ScheduleAutoApply();
             if (_viewModel.Tasks.Count == 0)
-                StatusLabel.Text = "Auto Apply is enabled; the clean wallpaper will be refreshed in the background.";
+                StatusLabel.Text = LocalizationService.Translate("Auto Apply is enabled; the clean wallpaper will be refreshed in the background.");
         }
         else
         {
             _autoApplyPending = false;
             Preferences.Default.Set(AutoApplyPendingPreferenceKey, false);
-            StatusLabel.Text = "Automatic wallpaper updates paused.";
+            StatusLabel.Text = LocalizationService.Translate("Automatic wallpaper updates paused.");
         }
     }
 
@@ -1796,7 +1998,7 @@ public partial class MainPage : ContentPage
         // Keep the queued state, but avoid changing the status label while the Add Task
         // handler is restoring focus to the entry. The status can be refreshed afterward.
         if (!_isApplying && !_isAddingTask)
-            StatusLabel.Text = AutoApplyQueuedStatus;
+            StatusLabel.Text = LocalizationService.Translate(AutoApplyQueuedStatus);
     }
 
     private async void ApplyButton_Clicked(object? sender, EventArgs e)
@@ -1820,7 +2022,7 @@ public partial class MainPage : ContentPage
         var todos = _viewModel.Tasks.Take(MaxWallpaperTasks).ToList();
         _isApplying = true;
         SetApplyBusyState(true);
-        StatusLabel.Text = "Preparing lock-screen wallpaper…";
+        StatusLabel.Text = LocalizationService.Translate("Preparing lock-screen wallpaper…");
         var succeeded = false;
 
         try
@@ -1845,8 +2047,8 @@ public partial class MainPage : ContentPage
 
             succeeded = true;
             StatusLabel.Text = _autoApplyPending
-                ? AutoApplyQueuedStatus
-                : $"Lock screen updated at {DateTime.Now:HH:mm}.";
+                ? LocalizationService.Translate(AutoApplyQueuedStatus)
+                : (LocalizationService.IsPersian ? $"صفحهٔ قفل در ساعت {DateTime.Now:HH:mm} به‌روز شد." : $"Lock screen updated at {DateTime.Now:HH:mm}.");
             if (showAlert)
                 await ShowInfoPopupAsync(
                     "Wallpaper updated",
@@ -1856,12 +2058,12 @@ public partial class MainPage : ContentPage
         }
         catch (OperationCanceledException)
         {
-            StatusLabel.Text = "Wallpaper update cancelled.";
+            StatusLabel.Text = LocalizationService.Translate("Wallpaper update cancelled.");
             return false;
         }
         catch (Exception ex)
         {
-            StatusLabel.Text = "Could not update wallpaper.";
+            StatusLabel.Text = LocalizationService.Translate("Could not update wallpaper.");
             if (showAlert)
                 await ShowInfoPopupAsync("Couldn’t update wallpaper", ex.Message, isError: true);
             return false;
@@ -1871,13 +2073,13 @@ public partial class MainPage : ContentPage
             _isApplying = false;
             SetApplyBusyState(false);
             if (_autoApplyPending)
-                StatusLabel.Text = AutoApplyQueuedStatus;
+                StatusLabel.Text = LocalizationService.Translate(AutoApplyQueuedStatus);
             else if (!succeeded && !showAlert && AutoApplySwitch.IsToggled)
             {
                 // Keep a failed background update queued for the next real background event.
                 _autoApplyPending = true;
                 Preferences.Default.Set(AutoApplyPendingPreferenceKey, true);
-                StatusLabel.Text = "Auto update queued for background.";
+                StatusLabel.Text = LocalizationService.Translate("Auto update queued for background.");
             }
         }
     }
@@ -1885,7 +2087,8 @@ public partial class MainPage : ContentPage
     private void SetApplyBusyState(bool isBusy)
     {
         ApplyButton.IsEnabled = !isBusy;
-        ApplyButton.Text = isBusy ? string.Empty : "Apply wallpaper";
+        ApplyButton.Text = isBusy ? string.Empty : LocalizationService.Translate("Apply wallpaper");
+        ApplyingLabel.Text = LocalizationService.Translate("Applying…");
         ApplyBusyContent.IsVisible = isBusy;
         ApplySpinner.IsRunning = isBusy;
     }
@@ -1903,13 +2106,14 @@ public partial class MainPage : ContentPage
         ModalCard.MaximumWidthRequest = 380;
         ModalCard.MaximumHeightRequest = Math.Max(280d, Height - 56d);
         ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 140d, 300d);
-        ModalTitle.Text = title;
-        ModalMessage.Text = message;
+        ModalTitle.Text = LocalizationService.Translate(title);
+        ModalMessage.Text = LocalizationService.Translate(message);
         ModalMessage.IsVisible = !string.IsNullOrWhiteSpace(message);
         var useOptionsIcon = string.Equals(icon, "options", StringComparison.OrdinalIgnoreCase);
         var useAlarmIcon = string.Equals(icon, "alarm", StringComparison.OrdinalIgnoreCase)
             || icon is "◷" or "⏰";
-        var useVectorIcon = useOptionsIcon || useAlarmIcon;
+        var useSettingsIcon = string.Equals(icon, "settings", StringComparison.OrdinalIgnoreCase);
+        var useVectorIcon = useOptionsIcon || useAlarmIcon || useSettingsIcon;
         ModalIconImage.IsVisible = useVectorIcon;
         ModalIconLabel.IsVisible = !useVectorIcon;
         if (useOptionsIcon)
@@ -1923,6 +2127,12 @@ public partial class MainPage : ContentPage
             ModalIconImage.Source = ImageSource.FromFile("locksy_alarm_icon.svg");
             ModalIconImage.WidthRequest = 23;
             ModalIconImage.HeightRequest = 23;
+        }
+        else if (useSettingsIcon)
+        {
+            ModalIconImage.Source = ImageSource.FromFile("settings_gear.svg");
+            ModalIconImage.WidthRequest = 24;
+            ModalIconImage.HeightRequest = 24;
         }
         else
         {
@@ -2032,14 +2242,14 @@ public partial class MainPage : ContentPage
         ModalBody.Children.Add(inputBorder);
         ModalBody.Children.Add(new Label
         {
-            Text = $"{(initialValue ?? string.Empty).Length}/{maxLength} characters · Scroll to read longer text",
+            Text = LocalizationService.FormatCharacterCounter((initialValue ?? string.Empty).Length, maxLength),
             FontSize = 10,
             TextColor = PopupColor("#7E8599", "#9FA5BC")
         });
         input.TextChanged += (_, args) =>
         {
             if (ModalBody.Children.Count > 1 && ModalBody.Children[1] is Label counter)
-                counter.Text = $"{(args.NewTextValue ?? string.Empty).Length}/{maxLength} characters · Scroll to read longer text";
+                counter.Text = LocalizationService.FormatCharacterCounter((args.NewTextValue ?? string.Empty).Length, maxLength);
         };
 
         var actions = new Grid { ColumnSpacing = 9 };
@@ -2125,7 +2335,7 @@ public partial class MainPage : ContentPage
         };
         border.Content = new Label
         {
-            Text = text,
+            Text = LocalizationService.Translate(text),
             FontSize = 13,
             FontAttributes = FontAttributes.Bold,
             TextColor = textColor,
@@ -2191,7 +2401,7 @@ public partial class MainPage : ContentPage
         row.Add(iconBack, 0, 0);
         row.Add(new Label
         {
-            Text = label,
+            Text = LocalizationService.Translate(label),
             FontSize = 13,
             FontAttributes = FontAttributes.None,
             TextColor = destructive ? PopupColor("#A83E59", "#FFC1D0") : PopupColor("#3F4559", "#E5E7F5"),
@@ -2200,7 +2410,7 @@ public partial class MainPage : ContentPage
         }, 1, 0);
         row.Add(new Label
         {
-            Text = "›",
+            Text = LocalizationService.Translate("›"),
             FontSize = 22,
             TextColor = PopupColor("#A29AB7", "#9189A8"),
             VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center,

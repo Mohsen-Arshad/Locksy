@@ -16,21 +16,41 @@
 
         <!-- Brand header and manual/system theme selector -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-            <Image Source="locksy_app_logo.png"
-                   WidthRequest="54"
-                   HeightRequest="54"
-                   VerticalOptions="Center" />
+            <!-- Keep settings directly under the Locksy mark, separate from the theme control. -->
+            <VerticalStackLayout Grid.Column="0"
+                                 Spacing="2"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center">
+                <Image Source="locksy_app_logo.png"
+                       WidthRequest="54"
+                       HeightRequest="54"
+                       VerticalOptions="Center"
+                       HorizontalOptions="Center" />
+                <ImageButton x:Name="SettingsButton"
+                             Source="settings_gear.svg"
+                             Clicked="SettingsButton_Clicked"
+                             WidthRequest="34"
+                             HeightRequest="28"
+                             Padding="6"
+                             Aspect="AspectFit"
+                             BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
+                             BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
+                             BorderWidth="1"
+                             CornerRadius="10"
+                             SemanticProperties.Description="Open application settings"
+                             AutomationProperties.Name="Application settings" />
+            </VerticalStackLayout>
             <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                 <Label Text="Locksy"
                        FontSize="29"
                        FontAttributes="Bold"
                        TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}" />
-                <Label Text="Keep what matters in sight."
+                <Label x:Name="HeaderTaglineLabel" Text="Keep what matters in sight."
                        FontSize="12"
                        TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}" />
             </VerticalStackLayout>
+            <VerticalStackLayout Grid.Column="2" Spacing="6" HorizontalOptions="Center" VerticalOptions="Center">
             <Border x:Name="ThemeToggleBorder"
-                    Grid.Column="2"
                     WidthRequest="98"
                     HeightRequest="32"
                     Padding="3"
@@ -97,6 +117,7 @@
                     </Border>
                 </Grid>
             </Border>
+            </VerticalStackLayout>
         </Grid>
 
         <!-- Add reminder: quick add plus a separate pre-add settings popup. -->
@@ -125,7 +146,7 @@
                        HeightRequest="52"
                        HandlerChanged="RoundedControl_HandlerChanged" />
             </Border>
-            <ImageButton Grid.Column="1"
+            <ImageButton x:Name="NewTaskSettingsButton" Grid.Column="1"
                          Source="locksy_options_icon.svg"
                          Clicked="NewTaskSettingsButton_Clicked"
                          BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
@@ -137,7 +158,7 @@
                          Padding="11"
                          Aspect="AspectFit"
                          AutomationProperties.Name="New reminder settings" />
-            <Button Grid.Column="2"
+            <Button x:Name="AddTaskButton" Grid.Column="2"
                     Text="＋ Add"
                     Clicked="AddTaskButton_Clicked"
                     BackgroundColor="#8875E8"
@@ -171,12 +192,12 @@
                         <Label Text="✓" FontSize="46" FontAttributes="Bold" HorizontalTextAlignment="Center"
                                VerticalTextAlignment="Center" TextColor="#8A78E8" />
                     </Border>
-                    <Label Text="Your list is clear"
+                    <Label x:Name="EmptyListTitleLabel" Text="Your list is clear"
                            FontSize="20"
                            FontAttributes="Bold"
                            TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
                            HorizontalTextAlignment="Center" />
-                    <Label Text="Add your first task. It will be saved on this device."
+                    <Label x:Name="EmptyListDescriptionLabel" Text="Add your first task. It will be saved on this device."
                            FontSize="13"
                            TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}"
                            HorizontalTextAlignment="Center" />
@@ -256,7 +277,7 @@
 
         <!-- Wallpaper layout settings -->
         <Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*" ColumnSpacing="10" RowSpacing="4">
-            <Label Grid.Row="0" Grid.Column="0"
+            <Label x:Name="ClockLayoutCaption" Grid.Row="0" Grid.Column="0"
                    Text="Clock layout"
                    FontSize="12"
                    FontAttributes="Bold"
@@ -291,7 +312,7 @@
                            VerticalTextAlignment="Center" />
                 </Grid>
             </Border>
-            <Label Grid.Row="1" Grid.Column="0"
+            <Label x:Name="AutoApplyCaption" Grid.Row="1" Grid.Column="0"
                    Text="Auto update"
                    FontSize="12"
                    FontAttributes="Bold"
@@ -305,7 +326,7 @@
                     StrokeShape="RoundRectangle 12"
                     VerticalOptions="Center">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <Label Text="Apply edits when app is in background"
+                    <Label x:Name="AutoApplyDescriptionLabel" Text="Apply edits when app is in background"
                            FontSize="12"
                            TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}"
                            VerticalTextAlignment="Center" />
@@ -344,7 +365,7 @@
         </Grid>
 
         <Grid Grid.Row="4" ColumnDefinitions="*,*" ColumnSpacing="8">
-            <Button Grid.Column="0"
+            <Button x:Name="ClearCompletedButton" Grid.Column="0"
                     Text="Clear completed"
                     Command="{Binding ClearCompletedCommand}"
                     HeightRequest="48"
@@ -383,7 +404,7 @@
                                        WidthRequest="19"
                                        HeightRequest="19"
                                        VerticalOptions="Center" />
-                    <Label Text="Applying…"
+                    <Label x:Name="ApplyingLabel" Text="Applying…"
                            TextColor="White"
                            FontSize="13"
                            FontAttributes="Bold"
@@ -398,7 +419,7 @@
                    FontSize="11"
                    TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}"
                    VerticalTextAlignment="Center" />
-            <Label Grid.Column="1"
+            <Label x:Name="FirstEightLabel" Grid.Column="1"
                    Text="First 8 tasks on wallpaper"
                    FontSize="10"
                    TextColor="{AppThemeBinding Light=#9298AA, Dark=#777E94}"
@@ -520,7 +541,7 @@
                             </Grid>
                         </Border>
                         <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
-                            <Label Text="LOCKSY  ·  QUICK ACTION"
+                            <Label x:Name="ModalSectionLabel" Text="LOCKSY  ·  QUICK ACTION"
                                    FontSize="9"
                                    CharacterSpacing="1.1"
                                    FontAttributes="Bold"

@@ -38,7 +38,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
         using var bitmap = Bitmap.CreateBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.Argb8888!);
         using var canvas = new Canvas(bitmap);
 
-        DrawBackground(canvas, bitmapWidth, bitmapHeight, darkMode);
+        DrawBackground(canvas, bitmapWidth, bitmapHeight, darkMode, CustomWallpaperBackgroundService.GetExistingPath());
         DrawTodos(canvas, bitmapWidth, bitmapHeight, todos.Take(MaxRows).ToList(), darkMode, settings);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -81,8 +81,87 @@ public sealed class AndroidWallpaperService : IWallpaperService
         return Task.FromResult(previewBytes);
     }
 
-    private static void DrawBackground(Canvas canvas, int width, int height, bool dark)
+    private static bool TryDrawCustomBackground(Canvas canvas, int width, int height, bool dark, string imagePath)
     {
+        try
+        {
+            var bounds = new BitmapFactory.Options { InJustDecodeBounds = true };
+            BitmapFactory.DecodeFile(imagePath, bounds);
+            if (bounds.OutWidth <= 0 || bounds.OutHeight <= 0)
+                return false;
+
+            var sampleSize = 1;
+            var sourceAspect = bounds.OutWidth / (float)bounds.OutHeight;
+            var targetAspect = width / (float)height;
+            // Choose the sample size from the portion that will actually remain after
+            // center-cropping. Using the whole image here would over-downsample panoramic
+            // pictures and make the central portrait crop look blurry.
+            var cropWidthAtSource = sourceAspect > targetAspect
+                ? bounds.OutHeight * targetAspect
+                : bounds.OutWidth;
+            var cropHeightAtSource = sourceAspect > targetAspect
+                ? bounds.OutHeight
+                : bounds.OutWidth / targetAspect;
+            while (sampleSize < 32 &&
+                   cropWidthAtSource / (sampleSize * 2) >= width &&
+                   cropHeightAtSource / (sampleSize * 2) >= height)
+                sampleSize *= 2;
+
+            var options = new BitmapFactory.Options { InSampleSize = sampleSize, InScaled = false };
+            using var image = BitmapFactory.DecodeFile(imagePath, options);
+            if (image is null || image.Width <= 0 || image.Height <= 0)
+                return false;
+
+            // Center-crop the selected image so it fills the lock screen without stretching.
+            var decodedImageAspect = image.Width / (float)image.Height;
+            var canvasAspect = width / (float)height;
+            int cropWidth;
+            int cropHeight;
+            int left;
+            int top;
+            if (decodedImageAspect > canvasAspect)
+            {
+                cropHeight = image.Height;
+                cropWidth = Math.Max(1, (int)Math.Round(image.Height * canvasAspect));
+                left = (image.Width - cropWidth) / 2;
+                top = 0;
+            }
+            else
+            {
+                cropWidth = image.Width;
+                cropHeight = Math.Max(1, (int)Math.Round(image.Width / canvasAspect));
+                left = 0;
+                top = (image.Height - cropHeight) / 2;
+            }
+
+            using (var imagePaint = new AndroidPaint { AntiAlias = true, FilterBitmap = true, Color = AndroidColor.White })
+            {
+                canvas.DrawBitmap(image,
+                    new global::Android.Graphics.Rect(left, top, left + cropWidth, top + cropHeight),
+                    new global::Android.Graphics.Rect(0, 0, width, height), imagePaint);
+            }
+
+            // A subtle scrim keeps un-tinted task text readable over photographs without hiding the image.
+            using var scrim = new AndroidPaint
+            {
+                AntiAlias = false,
+                Color = dark ? AndroidColor.Argb(38, 0, 0, 0) : AndroidColor.Argb(28, 255, 255, 255)
+            };
+            canvas.DrawRect(0, 0, width, height, scrim);
+            return true;
+        }
+        catch
+        {
+            // If the image was deleted or its format is unsupported, fall back to Locksy's built-in background.
+            return false;
+        }
+    }
+
+    private static void DrawBackground(Canvas canvas, int width, int height, bool dark, string? customImagePath)
+    {
+        if (!string.IsNullOrWhiteSpace(customImagePath) && TryDrawCustomBackground(canvas, width, height, dark, customImagePath))
+            return;
+
         // Original LockTodo treatment: soft gradient, quiet glow, fine grid, and circular accents.
         var bgTop = dark ? AndroidColor.Rgb(12, 13, 22) : AndroidColor.Rgb(247, 245, 251);
         var bgBottom = dark ? AndroidColor.Rgb(31, 20, 48) : AndroidColor.Rgb(223, 214, 246);
@@ -138,8 +217,10 @@ public sealed class AndroidWallpaperService : IWallpaperService
         // The values remain responsive to screen width, but no longer vary by layout.
         var creationLabelSize = titleSize * 0.62f;
         var creationDateSize = subtitleSize * 0.72f;
-        var creationDate = DateTime.Now.ToString("dddd, dd MMMM", CultureInfo.InvariantCulture).ToUpperInvariant();
-        const string creationLabel = "CREATION DATE:";
+        var creationDate = LocalizationService.IsPersian
+            ? LocalizationService.LocalizeDigits(DateTime.Now.ToString("dddd، dd MMMM", CultureInfo.GetCultureInfo("fa-IR")))
+            : DateTime.Now.ToString("dddd, dd MMMM", CultureInfo.InvariantCulture).ToUpperInvariant();
+        var creationLabel = LocalizationService.IsPersian ? "تاریخ ایجاد" : "CREATION DATE:";
         var footerColor = dark ? AndroidColor.Rgb(140, 155, 165) : AndroidColor.Rgb(95, 99, 106);
         var layout = settings.Layout;
         if (layout == WallpaperLayout.ScreenAware)
@@ -227,12 +308,16 @@ public sealed class AndroidWallpaperService : IWallpaperService
         footer.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Normal)!);
         footer.TextSize = Math.Clamp(width * 0.025f, 18f, 29f);
         footer.TextAlign = AndroidPaint.Align.Center;
-        canvas.DrawText("LOCKSY  ·  FOCUS ON WHAT MATTERS", width / 2f, height * 0.965f, footer);
+        var footerText = LocalizationService.IsPersian
+            ? "کارهایت، مستقیم روی صفحهٔ قفل"
+            : "LOCKSY  ·  FOCUS ON WHAT MATTERS";
+        DrawLocalizedText(canvas, footerText, width / 2f, height * 0.965f, footer);
     }
 
     private static void DrawTitleAndDate(
         Canvas canvas,
         float margin,
+        float right,
         float top,
         float titleSize,
         float subtitleSize,
@@ -248,8 +333,8 @@ public sealed class AndroidWallpaperService : IWallpaperService
         };
         titlePaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Bold)!);
         titlePaint.TextSize = titleSize;
-        titlePaint.TextAlign = AndroidPaint.Align.Left;
-        canvas.DrawText(title, margin, top + titleSize, titlePaint);
+        titlePaint.TextAlign = LocalizationService.IsPersian ? AndroidPaint.Align.Right : AndroidPaint.Align.Left;
+        DrawLocalizedText(canvas, title, LocalizationService.IsPersian ? right : margin, top + titleSize, titlePaint);
 
         if (!drawDate) return;
         using var subtitlePaint = new AndroidPaint
@@ -259,7 +344,21 @@ public sealed class AndroidWallpaperService : IWallpaperService
         };
         subtitlePaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Normal)!);
         subtitlePaint.TextSize = subtitleSize;
-        canvas.DrawText(subtitle, margin, top + titleSize + subtitleSize * 1.55f, subtitlePaint);
+        subtitlePaint.TextAlign = LocalizationService.IsPersian ? AndroidPaint.Align.Right : AndroidPaint.Align.Left;
+        DrawLocalizedText(canvas, subtitle, LocalizationService.IsPersian ? right : margin,
+            top + titleSize + subtitleSize * 1.55f, subtitlePaint);
+    }
+
+    private static void DrawLocalizedText(Canvas canvas, string text, float x, float baseline, AndroidPaint paint)
+    {
+        if (LocalizationService.IsPersian && !string.IsNullOrEmpty(text))
+        {
+            // DrawTextRun enables Android's contextual shaping for Persian/Arabic glyphs.
+            canvas.DrawTextRun(text, 0, text.Length, 0, text.Length, x, baseline, true, paint);
+            return;
+        }
+
+        canvas.DrawText(text, x, baseline, paint);
     }
 
     private static void DrawTaskGroup(
@@ -290,8 +389,9 @@ public sealed class AndroidWallpaperService : IWallpaperService
             : 0f;
         var baseFontSize = Math.Clamp(width * 0.039f, 23f, 43f);
         var bodySize = baseFontSize;
-        var textX = margin + cardWidth * 0.16f;
-        var maxTextWidth = cardWidth * 0.79f;
+        var isPersian = LocalizationService.IsPersian;
+        var textX = margin + cardWidth * (isPersian ? 0.04f : 0.205f);
+        var maxTextWidth = cardWidth * (isPersian ? 0.72f : 0.735f);
         var baseGap = Math.Clamp(height * 0.011f, 14f, 24f);
         var gap = baseGap;
         List<PreparedRow> rows = new();
@@ -328,7 +428,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
 
         if (hasHeading)
         {
-            DrawTitleAndDate(canvas, margin, contentTop,
+            DrawTitleAndDate(canvas, margin, width - margin, contentTop,
                 headingTitleSize, headingSubtitleSize, dark,
                 headingTitle!, headingSubtitle ?? string.Empty);
         }
@@ -366,7 +466,9 @@ public sealed class AndroidWallpaperService : IWallpaperService
             // The task number sits in its own warm-ivory badge, above every custom row tint.
             // This prevents strong background colors from visually swallowing the number.
             var centerY = y + row.Height / 2f;
-            var badgeCenterX = margin + cardWidth * 0.075f;
+            var badgeCenterX = isPersian
+                ? margin + cardWidth * 0.925f
+                : margin + cardWidth * 0.075f;
             var badgeRadius = Math.Clamp(bodySize * 0.72f, 18f, 31f);
             using (var badgePaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(255, 243, 220) })
                 canvas.DrawCircle(badgeCenterX, centerY, badgeRadius, badgePaint);
@@ -375,7 +477,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
             numberPaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Bold)!);
             numberPaint.TextSize = Math.Clamp(bodySize * 0.62f, 15f, 27f);
             numberPaint.TextAlign = AndroidPaint.Align.Center;
-            var numberText = row.Task.IsCompleted ? "✓" : (startingNumber + i + 1).ToString("00", CultureInfo.InvariantCulture);
+            var numberText = row.Task.IsCompleted ? "✓" : LocalizationService.LocalizeDigits((startingNumber + i + 1).ToString("00", CultureInfo.InvariantCulture));
             canvas.DrawText(numberText, badgeCenterX, centerY + numberPaint.TextSize * 0.34f, numberPaint);
 
             // Reserve the clock's horizontal slot for every row so task titles remain
@@ -384,20 +486,30 @@ public sealed class AndroidWallpaperService : IWallpaperService
             // from the next generated wallpaper instead of leaving a smoky stale clock.
             // Larger clock indicator: keep it legible on phone lock screens while
             // the reserved text slot below continues to protect title alignment.
-            var clockRadius = Math.Clamp(bodySize * 0.31f, 12f, 19f);
-            var clockCenterX = badgeCenterX + badgeRadius + clockRadius + Math.Max(5f, bodySize * 0.12f);
-            clockCenterX = Math.Min(clockCenterX, textX - clockRadius - 5f);
+            var clockBadgeRadius = badgeRadius;
+            var clockGap = Math.Max(5f, bodySize * 0.12f);
+            var clockCenterX = isPersian
+                ? badgeCenterX - badgeRadius - clockBadgeRadius - clockGap
+                : badgeCenterX + badgeRadius + clockBadgeRadius + clockGap;
+            clockCenterX = isPersian
+                ? Math.Max(clockCenterX, textX + maxTextWidth + clockBadgeRadius + 4f)
+                : Math.Min(clockCenterX, textX - clockBadgeRadius - 4f);
             if (row.Task.IsReminderActive)
             {
+                // Match the number badge exactly: same warm ivory fill and circular silhouette.
+                using (var clockBadgePaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(255, 243, 220) })
+                    canvas.DrawCircle(clockCenterX, centerY, clockBadgeRadius, clockBadgePaint);
+
+                var clockIconRadius = Math.Clamp(bodySize * 0.38f, 11f, 18f);
                 var clockColor = dark
-                    ? AndroidColor.Rgb(197, 176, 255)
+                    ? AndroidColor.Rgb(112, 76, 211)
                     : AndroidColor.Rgb(112, 76, 211);
                 using var clockPaint = new AndroidPaint { AntiAlias = true, Color = clockColor };
                 clockPaint.SetStyle(AndroidPaint.Style.Stroke);
-                clockPaint.StrokeWidth = Math.Max(3.2f, bodySize * 0.072f);
-                canvas.DrawCircle(clockCenterX, centerY, clockRadius, clockPaint);
-                canvas.DrawLine(clockCenterX, centerY, clockCenterX, centerY - clockRadius * 0.48f, clockPaint);
-                canvas.DrawLine(clockCenterX, centerY, clockCenterX + clockRadius * 0.36f, centerY + clockRadius * 0.20f, clockPaint);
+                clockPaint.StrokeWidth = Math.Max(2.4f, bodySize * 0.052f);
+                canvas.DrawCircle(clockCenterX, centerY, clockIconRadius, clockPaint);
+                canvas.DrawLine(clockCenterX, centerY, clockCenterX, centerY - clockIconRadius * 0.50f, clockPaint);
+                canvas.DrawLine(clockCenterX, centerY, clockCenterX + clockIconRadius * 0.38f, centerY + clockIconRadius * 0.22f, clockPaint);
             }
 
             var foreground = AndroidColor.ParseColor(
@@ -405,19 +517,21 @@ public sealed class AndroidWallpaperService : IWallpaperService
             using var textPaint = new AndroidPaint { AntiAlias = true, Color = foreground };
             textPaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Normal)!);
             textPaint.TextSize = bodySize;
+            textPaint.TextAlign = isPersian ? AndroidPaint.Align.Right : AndroidPaint.Align.Left;
             var lineHeight = bodySize * 1.22f;
             var textHeight = row.Lines.Count * lineHeight;
             var baseline = y + (row.Height - textHeight) / 2f + bodySize * 0.82f;
             foreach (var line in row.Lines)
             {
-                canvas.DrawText(line, textX, baseline, textPaint);
+                DrawLocalizedText(canvas, line, isPersian ? textX + maxTextWidth : textX, baseline, textPaint);
                 if (row.Task.IsCompleted)
                 {
                     using var strike = new AndroidPaint { AntiAlias = true, Color = foreground };
                     strike.StrokeWidth = Math.Max(1.5f, bodySize * 0.045f);
                     var measured = textPaint.MeasureText(line);
-                    canvas.DrawLine(textX, baseline - bodySize * 0.32f,
-                        Math.Min(textX + measured, textX + maxTextWidth), baseline - bodySize * 0.32f, strike);
+                    var strikeStart = isPersian ? textX + maxTextWidth - measured : textX;
+                    var strikeEnd = isPersian ? textX + maxTextWidth : Math.Min(textX + measured, textX + maxTextWidth);
+                    canvas.DrawLine(strikeStart, baseline - bodySize * 0.32f, strikeEnd, baseline - bodySize * 0.32f, strike);
                 }
                 baseline += lineHeight;
             }
