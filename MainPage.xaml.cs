@@ -65,6 +65,10 @@ public partial class MainPage : ContentPage
     private DateTime _lastBackPressUtc = DateTime.MinValue;
     private bool _compactEditorPopup;
     private bool _settingsTransitionRunning;
+    private bool _settingsFlowActive;
+    private string _currentSettingsPage = "Settings";
+    private bool _taskPopupFlowActive;
+    private bool _taskPopupSubpageActive;
 #if ANDROID
     private readonly Dictionary<Android.Views.View, WeakReference<Label>> _nativeTitleViews = new();
     private readonly Dictionary<Android.Views.View, WeakReference<Border>> _nativeTaskRows = new();
@@ -222,6 +226,8 @@ public partial class MainPage : ContentPage
 
     private async void SettingsButton_Clicked(object? sender, EventArgs e)
     {
+        _settingsFlowActive = true;
+        _currentSettingsPage = "Settings";
         var completion = BeginPopup(
             "Settings",
             "Manage your app theme, language, custom wallpaper and app information.",
@@ -232,6 +238,8 @@ public partial class MainPage : ContentPage
         ModalCard.MinimumHeightRequest = Math.Min(420d, ModalCard.MaximumHeightRequest);
         await NavigateSettingsPageAsync("Settings", animate: false);
         await completion.Task;
+        _settingsFlowActive = false;
+        _currentSettingsPage = "Settings";
     }
 
     private async Task NavigateSettingsPageAsync(
@@ -256,7 +264,8 @@ public partial class MainPage : ContentPage
                     ModalBodyScroll.FadeTo(0, 90, Easing.CubicIn),
                     ModalButtons.FadeTo(0, 90, Easing.CubicIn),
                     ModalBodyScroll.TranslateTo(exitX, 0, 90, Easing.CubicIn),
-                    ModalButtons.TranslateTo(exitX, 0, 90, Easing.CubicIn));
+                    ModalButtons.TranslateTo(exitX, 0, 90, Easing.CubicIn),
+                    AnimatePopupHeaderAsync(0, exitX, 90, Easing.CubicIn));
 
                 // The user may close the modal during the short transition.
                 if (_popupCompletionSource is null)
@@ -276,9 +285,6 @@ public partial class MainPage : ContentPage
                 case "Settings":
                     RenderSettingsHome();
                     break;
-                case "Theme":
-                    RenderThemeSettings();
-                    break;
                 case "Language":
                     RenderLanguageSettings();
                     break;
@@ -289,10 +295,12 @@ public partial class MainPage : ContentPage
                     RenderAboutSettings();
                     break;
                 default:
+                    page = "Settings";
                     RenderSettingsHome();
                     ConfigureSettingsPopupHeader("Settings");
                     break;
             }
+            _currentSettingsPage = page;
 
             _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
             if (!animate)
@@ -301,6 +309,7 @@ public partial class MainPage : ContentPage
                 ModalButtons.Opacity = 1;
                 ModalBodyScroll.TranslationX = 0;
                 ModalButtons.TranslationX = 0;
+                SetPopupHeaderVisualState(1, 0);
                 return;
             }
 
@@ -308,11 +317,13 @@ public partial class MainPage : ContentPage
             ModalButtons.Opacity = 0;
             ModalBodyScroll.TranslationX = enterX;
             ModalButtons.TranslationX = enterX;
+            SetPopupHeaderVisualState(0, enterX);
             await Task.WhenAll(
                 ModalBodyScroll.FadeTo(1, 170, Easing.CubicOut),
                 ModalButtons.FadeTo(1, 170, Easing.CubicOut),
                 ModalBodyScroll.TranslateTo(0, 0, 170, Easing.CubicOut),
-                ModalButtons.TranslateTo(0, 0, 170, Easing.CubicOut));
+                ModalButtons.TranslateTo(0, 0, 170, Easing.CubicOut),
+                AnimatePopupHeaderAsync(1, 0, 170, Easing.CubicOut));
         }
         finally
         {
@@ -320,12 +331,40 @@ public partial class MainPage : ContentPage
         }
     }
 
+    private void SetPopupHeaderVisualState(double opacity, double translationX)
+    {
+        ModalSectionLabel.Opacity = opacity;
+        ModalTitle.Opacity = opacity;
+        ModalMessage.Opacity = opacity;
+        ModalIconImage.Opacity = opacity;
+        ModalIconLabel.Opacity = opacity;
+        ModalSectionLabel.TranslationX = translationX;
+        ModalTitle.TranslationX = translationX;
+        ModalMessage.TranslationX = translationX;
+        ModalIconImage.TranslationX = translationX;
+        ModalIconLabel.TranslationX = translationX;
+    }
+
+    private Task AnimatePopupHeaderAsync(double opacity, double translationX, uint duration, Easing easing)
+    {
+        return Task.WhenAll(
+            ModalSectionLabel.FadeTo(opacity, duration, easing),
+            ModalTitle.FadeTo(opacity, duration, easing),
+            ModalMessage.FadeTo(opacity, duration, easing),
+            ModalIconImage.FadeTo(opacity, duration, easing),
+            ModalIconLabel.FadeTo(opacity, duration, easing),
+            ModalSectionLabel.TranslateTo(translationX, 0, duration, easing),
+            ModalTitle.TranslateTo(translationX, 0, duration, easing),
+            ModalMessage.TranslateTo(translationX, 0, duration, easing),
+            ModalIconImage.TranslateTo(translationX, 0, duration, easing),
+            ModalIconLabel.TranslateTo(translationX, 0, duration, easing));
+    }
+
     private void ConfigureSettingsPopupHeader(string page)
     {
         var title = page switch
         {
             "Settings" => "Settings",
-            "Theme" => "Theme",
             "Language" => "Language",
             "Background image" => "Background image",
             "About" => "About",
@@ -334,9 +373,6 @@ public partial class MainPage : ContentPage
         var message = page switch
         {
             "Settings" => "Manage your app theme, language, custom wallpaper and app information.",
-            "Theme" => ThemeService.IsDarkMode()
-                ? "The dark theme is currently active."
-                : "The light theme is currently active.",
             "Language" => "Choose your preferred language. English is the default.",
             "Background image" => CustomWallpaperBackgroundService.GetExistingPath() is not null
                 ? "A custom background is currently active."
@@ -347,7 +383,6 @@ public partial class MainPage : ContentPage
         var icon = page switch
         {
             "Settings" => "settings",
-            "Theme" => "◐",
             "Language" => "Aa",
             "Background image" => "▧",
             "About" => "!",
@@ -382,14 +417,14 @@ public partial class MainPage : ContentPage
 
     private void RenderSettingsHome()
     {
+        AddThemeToggleRow();
+
+        AddSettingsOption("Language", "Choose English or Persian for the app.", "Aa",
+            () => NavigateSettingsPageAsync("Language"));
+
         var backgroundSubtitle = CustomWallpaperBackgroundService.GetExistingPath() is not null
             ? "A custom background is currently active."
             : "The default Locksy background is currently active.";
-
-        AddSettingsOption("Theme", "Choose the app's light or dark appearance.", "◐",
-            () => NavigateSettingsPageAsync("Theme"));
-        AddSettingsOption("Language", "Choose English or Persian for the app.", "Aa",
-            () => NavigateSettingsPageAsync("Language"));
         AddSettingsOption("Background image", backgroundSubtitle, "▧",
             () => NavigateSettingsPageAsync("Background image"));
         AddSettingsOption("About", "App information and project source code.", "!",
@@ -397,22 +432,65 @@ public partial class MainPage : ContentPage
         BuildSettingsFooter(isHome: true);
     }
 
-    private void RenderThemeSettings()
+    private void AddThemeToggleRow()
     {
-        var isDark = ThemeService.IsDarkMode();
-        AddSettingsOption("Light theme", "A light surface with dark text.", "☼",
-            async () =>
-            {
-                if (ThemeService.IsDarkMode())
-                    await NavigateSettingsPageAsync("Theme", animate: true, beforeRender: () => ApplyThemePreference(ThemePreference.Light));
-            }, isSelected: !isDark);
-        AddSettingsOption("Dark theme", "A dark surface for low-light use.", "☾",
-            async () =>
-            {
-                if (!ThemeService.IsDarkMode())
-                    await NavigateSettingsPageAsync("Theme", animate: true, beforeRender: () => ApplyThemePreference(ThemePreference.Dark));
-            }, isSelected: isDark);
-        BuildSettingsFooter(isHome: false);
+        var themeSwitch = new Switch
+        {
+            IsToggled = ThemeService.IsDarkMode(),
+            OnColor = Color.FromArgb("#8875E8"),
+            ThumbColor = Colors.White,
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalOptions = LayoutOptions.End
+        };
+        themeSwitch.Toggled += ThemeToggle_Toggled;
+        SemanticProperties.SetDescription(themeSwitch, LocalizationService.Translate("Switch between dark and light theme"));
+
+        var labels = new VerticalStackLayout { Spacing = 3, VerticalOptions = LayoutOptions.Center };
+        labels.Children.Add(new Label
+        {
+            Text = LocalizationService.Translate("Theme"),
+            FontSize = 14,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#3F4559", "#E5E7F5")
+        });
+        labels.Children.Add(new Label
+        {
+            Text = LocalizationService.Translate(ThemeService.IsDarkMode() ? "Dark theme" : "Light theme"),
+            FontSize = 11,
+            TextColor = PopupColor("#7E8599", "#9FA5BC")
+        });
+
+        var row = new Grid
+        {
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
+            ColumnSpacing = 12,
+            Padding = new Thickness(14, 9),
+            MinimumHeightRequest = 62,
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        };
+        row.Add(labels, 0, 0);
+        row.Add(themeSwitch, 1, 0);
+
+        ModalBody.Children.Add(new Border
+        {
+            BackgroundColor = PopupColor("#E6E0FF", "#332D49"),
+            Stroke = new SolidColorBrush(PopupColor("#AA9AF2", "#62538D")),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(15) },
+            Shadow = CreateNeumorphicShadow(0.32f),
+            Content = row
+        });
+    }
+
+    private async void ThemeToggle_Toggled(object? sender, ToggledEventArgs e)
+    {
+        if (_settingsTransitionRunning || _popupCompletionSource is null)
+            return;
+
+        ApplyThemePreference(e.Value ? ThemePreference.Dark : ThemePreference.Light);
+        // Re-render the same Settings page in-place so all hand-styled controls pick up
+        // the newly selected palette without navigating to a separate Theme screen.
+        await NavigateSettingsPageAsync("Settings", animate: true);
     }
 
     private void RenderLanguageSettings()
@@ -1078,7 +1156,7 @@ public partial class MainPage : ContentPage
             await AddTaskAndKeepInputReadyAsync();
     }
 
-    private async Task<bool> EnsureNotificationPermissionAsync()
+    private async Task<bool> EnsureNotificationPermissionAsync(bool keepModalOpenOnDismiss = false)
     {
 #if ANDROID
         PermissionStatus notificationPermission;
@@ -1088,7 +1166,7 @@ public partial class MainPage : ContentPage
         }
         catch (Exception ex)
         {
-            await ShowInfoPopupAsync("Notification permission", ex.Message, isError: true);
+            await ShowInfoPopupAsync("Notification permission", ex.Message, isError: true, keepModalOpenOnDismiss: keepModalOpenOnDismiss);
             return false;
         }
         if (notificationPermission != PermissionStatus.Granted)
@@ -1096,7 +1174,8 @@ public partial class MainPage : ContentPage
             await ShowInfoPopupAsync(
                 "Notifications are disabled",
                 "Locksy cannot show the reminder until notification permission is enabled in Android Settings.",
-                isError: true);
+                isError: true,
+                keepModalOpenOnDismiss: keepModalOpenOnDismiss);
             return false;
         }
 #endif
@@ -1117,7 +1196,19 @@ public partial class MainPage : ContentPage
         if (_popupCompletionSource is not null)
         {
             _lastBackPressUtc = DateTime.MinValue;
-            CompletePopup(null);
+            if (_settingsFlowActive && !string.Equals(_currentSettingsPage, "Settings", StringComparison.Ordinal))
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                    await NavigateSettingsPageAsync("Settings", animate: true, reverse: true));
+            }
+            else if (_taskPopupFlowActive && _taskPopupSubpageActive)
+            {
+                CompletePopupInPlace(null);
+            }
+            else
+            {
+                CompletePopup(null);
+            }
             return true;
         }
 
@@ -1197,62 +1288,109 @@ public partial class MainPage : ContentPage
 
     private async Task ShowTaskOptionsAsync(TodoItem task)
     {
-        var action = await ShowChoicePopupAsync(
-            "Task options",
-            "Choose what to do with a task.",
-            new[] { "Edit task", "Change row color", "Set / edit alarm", "Delete task" },
-            icons: new[] { "edit", "palette", "alarm", "trash" },
-            popupIcon: "options");
-
-        switch (action)
+        _taskPopupFlowActive = true;
+        try
         {
-            case "Edit task":
-                await EditTaskAsync(task);
-                break;
-            case "Change row color":
-                await ChooseTaskColorAsync(task);
-                break;
-            case "Set / edit alarm":
-                await EditTaskReminderAsync(task);
-                break;
-            case "Delete task":
-                var confirmed = await ShowConfirmationPopupAsync(
-                    "Delete this task?",
-                    (LocalizationService.IsPersian ? $"حذف «{task.Title}» از فهرست؟ این کار قابل بازگشت نیست." : $"Remove ‘{task.Title}’ from your list? This can’t be undone."),
-                    "Delete task",
-                    destructive: true);
-                if (confirmed) task.DeleteCommand?.Execute(null);
-                break;
+            // Keep one modal alive while moving from options into Edit, Color, Alarm,
+            // and Delete confirmation screens. Each child screen returns to this menu.
+            while (true)
+            {
+                var action = await ShowChoicePopupAsync(
+                    "Task options",
+                    "Choose what to do with a task.",
+                    new[] { "Edit task", "Change row color", "Set / edit alarm", "Delete task" },
+                    cancelLabel: "Close",
+                    icons: new[] { "edit", "palette", "alarm", "trash" },
+                    popupIcon: "options",
+                    keepOpenOnSelection: true);
+
+                if (action is null)
+                    return;
+
+                _taskPopupSubpageActive = true;
+                switch (action)
+                {
+                    case "Edit task":
+                        await EditTaskAsync(task, keepModalOpenOnCompletion: true);
+                        break;
+
+                    case "Change row color":
+                        await ChooseTaskColorAsync(task, keepModalOpenOnSelection: true);
+                        break;
+
+                    case "Set / edit alarm":
+                        await EditTaskReminderAsync(task, keepModalOpenAfterEdit: true);
+                        break;
+
+                    case "Delete task":
+                        var confirmed = await ShowConfirmationPopupAsync(
+                            "Delete this task?",
+                            LocalizationService.IsPersian
+                                ? $"حذف «{task.Title}» از فهرست؟ این کار قابل بازگشت نیست."
+                                : $"Remove ‘{task.Title}’ from your list? This can’t be undone.",
+                            "Delete task",
+                            destructive: true,
+                            keepModalOpenOnDismiss: true);
+                        if (confirmed)
+                        {
+                            task.DeleteCommand?.Execute(null);
+                            CompletePopup(null);
+                            return;
+                        }
+                        break;
+                }
+                _taskPopupSubpageActive = false;
+            }
+        }
+        finally
+        {
+            _taskPopupFlowActive = false;
+            _taskPopupSubpageActive = false;
+            // If an unexpected child action exits while no popup task owns the still-open
+            // surface, close it rather than leave a blocked overlay behind.
+            if (ModalOverlay.IsVisible && _popupCompletionSource is null)
+                CompletePopup(null);
         }
     }
 
-    private async Task EditTaskAsync(TodoItem task)
+    private async Task EditTaskAsync(TodoItem task, bool keepModalOpenOnCompletion = false)
     {
         var value = await ShowPromptPopupAsync(
             "Edit task",
             "Make the change and save when you’re ready.",
             placeholder: LocalizationService.Translate("Task text"),
             maxLength: 300,
-            initialValue: task.Title);
+            initialValue: task.Title,
+            keepModalOpenOnCompletion: keepModalOpenOnCompletion);
 
         if (value is not null)
             _viewModel.EditTask(task, value);
     }
 
-    private async Task EditTaskReminderAsync(TodoItem task)
+    private async Task EditTaskReminderAsync(TodoItem task, bool keepModalOpenAfterEdit = false)
     {
         var completion = BeginPopup(
             "Task alarm",
             "Choose a date and time for a one-time reminder. Android may delay reminders slightly if exact-alarm access is disabled.",
             "alarm");
 
-        _compactEditorPopup = true;
-        var availablePageWidth = Width > 0 ? Width : 360d;
-        var popupWidth = Math.Max(240d, Math.Min(330d, availablePageWidth - 36d));
-        ModalCard.WidthRequest = popupWidth;
-        ModalCard.MaximumWidthRequest = popupWidth;
-        ModalCard.MaximumHeightRequest = Math.Min(500d, Math.Max(300d, Height - 48d));
-        ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 430d, 170d, 250d);
+        _compactEditorPopup = !keepModalOpenAfterEdit;
+        if (keepModalOpenAfterEdit)
+        {
+            ModalCard.WidthRequest = -1;
+            ModalCard.MaximumWidthRequest = 380;
+            ModalCard.MaximumHeightRequest = Math.Max(280d, Height - 56d);
+            ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 140d, 300d);
+        }
+        else
+        {
+            var availablePageWidth = Width > 0 ? Width : 360d;
+            var popupWidth = Math.Max(240d, Math.Min(330d, availablePageWidth - 36d));
+            ModalCard.WidthRequest = popupWidth;
+            ModalCard.MaximumWidthRequest = popupWidth;
+            ModalCard.MaximumHeightRequest = Math.Min(500d, Math.Max(300d, Height - 48d));
+            ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 430d, 170d, 250d);
+        }
 
         var enabled = new Switch
         {
@@ -1330,9 +1468,29 @@ public partial class MainPage : ContentPage
         var actions = new Grid { ColumnSpacing = 9 };
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        actions.Add(CreatePopupAction("Cancel", null, primary: false, destructive: false), 0, 0);
+        actions.Add(CreatePopupAction(keepModalOpenAfterEdit ? "Back to task options" : "Cancel", null, primary: false, destructive: false,
+            customAction: () =>
+            {
+                if (keepModalOpenAfterEdit) CompletePopupInPlace(null);
+                else CompletePopup(null);
+            }), 0, 0);
         actions.Add(CreatePopupAction("Save alarm", "__SAVE_ALARM__", primary: true, destructive: false,
-            customAction: () => CompletePopup("SAVE_ALARM")), 1, 0);
+            customAction: () =>
+            {
+                if (enabled.IsToggled)
+                {
+                    var candidate = DateTime.SpecifyKind(datePicker.Date.Date + timePicker.Time, DateTimeKind.Local);
+                    if (candidate <= DateTime.Now)
+                    {
+                        ModalMessage.Text = LocalizationService.Translate("The alarm time must be later than the current time.");
+                        ModalMessage.TextColor = Color.FromArgb("#D45C72");
+                        ModalMessage.IsVisible = true;
+                        return;
+                    }
+                }
+                if (keepModalOpenAfterEdit) CompletePopupInPlace("SAVE_ALARM");
+                else CompletePopup("SAVE_ALARM");
+            }), 1, 0);
         ModalButtons.Children.Add(actions);
 
         var result = await completion.Task;
@@ -1352,11 +1510,12 @@ public partial class MainPage : ContentPage
         var scheduledAt = DateTime.SpecifyKind(datePicker.Date.Date + timePicker.Time, DateTimeKind.Local);
         if (scheduledAt <= DateTime.Now)
         {
-            await ShowInfoPopupAsync("Choose a future time", "The alarm time must be later than the current time.", isError: true);
+            await ShowInfoPopupAsync("Choose a future time", "The alarm time must be later than the current time.", isError: true,
+                keepModalOpenOnDismiss: keepModalOpenAfterEdit);
             return;
         }
 
-        if (!await EnsureNotificationPermissionAsync())
+        if (!await EnsureNotificationPermissionAsync(keepModalOpenOnDismiss: keepModalOpenAfterEdit))
             return;
 
         task.IsReminderEnabled = false;
@@ -1385,9 +1544,9 @@ public partial class MainPage : ContentPage
         Content = picker
     };
 
-    private async Task ChooseTaskColorAsync(TodoItem task)
+    private async Task ChooseTaskColorAsync(TodoItem task, bool keepModalOpenOnSelection = false)
     {
-        var selection = await ShowTaskPalettePopupAsync(task);
+        var selection = await ShowTaskPalettePopupAsync(task, keepModalOpenOnSelection);
         if (string.IsNullOrWhiteSpace(selection)) return;
 
         var parts = selection.Split('|', 2, StringSplitOptions.TrimEntries);
@@ -1404,7 +1563,7 @@ public partial class MainPage : ContentPage
         StatusLabel.Text = LocalizationService.IsPersian ? $"{LocalizationService.Translate(option.Name)} · پالت {LocalizationService.Translate(TodoPalette.GetPaletteName(paletteKey))}" : $"{option.Name} · {TodoPalette.GetPaletteName(paletteKey)} palette.";
     }
 
-    private Task<string?> ShowTaskPalettePopupAsync(TodoItem task)
+    private Task<string?> ShowTaskPalettePopupAsync(TodoItem task, bool keepModalOpenOnSelection = false)
     {
         var completion = BeginPopup(
             "Task color",
@@ -1548,7 +1707,12 @@ public partial class MainPage : ContentPage
                 };
                 var colorTap = new TapGestureRecognizer();
                 var selectedColorKey = option.Key;
-                colorTap.Tapped += (_, _) => CompletePopup($"{selectedPaletteKey}|{selectedColorKey}");
+                colorTap.Tapped += (_, _) =>
+                {
+                    var result = $"{selectedPaletteKey}|{selectedColorKey}";
+                    if (keepModalOpenOnSelection) CompletePopupInPlace(result);
+                    else CompletePopup(result);
+                };
                 choiceBorder.GestureRecognizers.Add(colorTap);
                 colorRows.Children.Add(choiceBorder);
             }
@@ -1556,7 +1720,12 @@ public partial class MainPage : ContentPage
 
         RefreshPaletteSelector();
         RefreshColorRows();
-        ModalButtons.Children.Add(CreatePopupAction("Cancel", null, primary: false, destructive: false));
+        ModalButtons.Children.Add(CreatePopupAction(keepModalOpenOnSelection ? "Back to task options" : "Cancel", null, primary: false, destructive: false,
+            customAction: () =>
+            {
+                if (keepModalOpenOnSelection) CompletePopupInPlace(null);
+                else CompletePopup(null);
+            }));
         return completion.Task;
     }
 
@@ -2340,6 +2509,9 @@ public partial class MainPage : ContentPage
     // All in-app dialogs use Locksy's own visual style instead of native MAUI sheets.
     private TaskCompletionSource<string?> BeginPopup(string title, string message, string icon = "✦")
     {
+        // A nested action can finish its result while keeping the modal surface open.
+        // The next popup then replaces the content and animates inside the same card.
+        var reuseVisibleModal = ModalOverlay.IsVisible && _popupCompletionSource is null;
         if (_popupCompletionSource is not null)
             CompletePopup(null);
 
@@ -2351,10 +2523,13 @@ public partial class MainPage : ContentPage
         ModalCard.MaximumHeightRequest = Math.Max(280d, Height - 56d);
         ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 140d, 300d);
         ModalCard.MinimumHeightRequest = -1;
-        ModalBodyScroll.Opacity = 1;
-        ModalButtons.Opacity = 1;
-        ModalBodyScroll.TranslationX = 0;
-        ModalButtons.TranslationX = 0;
+        ModalBodyScroll.Opacity = reuseVisibleModal ? 0 : 1;
+        ModalButtons.Opacity = reuseVisibleModal ? 0 : 1;
+        var transitionStartX = (LocalizationService.IsPersian ? -1d : 1d) * 16d;
+        ModalBodyScroll.TranslationX = reuseVisibleModal ? transitionStartX : 0;
+        ModalButtons.TranslationX = reuseVisibleModal ? transitionStartX : 0;
+        SetPopupHeaderVisualState(reuseVisibleModal ? 0 : 1, reuseVisibleModal ? transitionStartX : 0);
+        ModalSectionLabel.Text = LocalizationService.Translate("LOCKSY · QUICK ACTION");
         ModalTitle.Text = LocalizationService.Translate(title);
         ModalMessage.Text = LocalizationService.Translate(message);
         ModalMessage.TextColor = PopupColor("#6F7589", "#ADB2C8");
@@ -2401,12 +2576,45 @@ public partial class MainPage : ContentPage
         // Disable hit testing on the entire page beneath the modal. This is separate
         // from the backdrop's hit target so even platform-native controls cannot leak taps.
         PageContent.InputTransparent = true;
-        ModalOverlay.Opacity = 0;
-        ModalCard.Scale = 0.94;
-        ModalOverlay.IsVisible = true;
-        _ = ModalOverlay.FadeTo(1, 160, Easing.CubicOut);
-        _ = ModalCard.ScaleTo(1, 180, Easing.CubicOut);
+        if (reuseVisibleModal)
+        {
+            ModalOverlay.Opacity = 1;
+            ModalCard.Scale = 1;
+            ModalOverlay.IsVisible = true;
+            _ = AnimatePopupContentInAsync();
+        }
+        else
+        {
+            ModalOverlay.Opacity = 0;
+            ModalCard.Scale = 0.94;
+            ModalOverlay.IsVisible = true;
+            _ = ModalOverlay.FadeTo(1, 160, Easing.CubicOut);
+            _ = ModalCard.ScaleTo(1, 180, Easing.CubicOut);
+        }
         return completion;
+    }
+
+    private async Task AnimatePopupContentInAsync()
+    {
+        // BeginPopup callers build the new controls synchronously after it returns.
+        try
+        {
+            await Task.Delay(20);
+            await Task.WhenAll(
+                ModalBodyScroll.FadeTo(1, 145, Easing.CubicOut),
+                ModalButtons.FadeTo(1, 145, Easing.CubicOut),
+                ModalBodyScroll.TranslateTo(0, 0, 145, Easing.CubicOut),
+                ModalButtons.TranslateTo(0, 0, 145, Easing.CubicOut),
+                AnimatePopupHeaderAsync(1, 0, 145, Easing.CubicOut));
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer transition may cancel this one; it will own the final state.
+        }
+        finally
+        {
+            ModalCard.InputTransparent = false;
+        }
     }
 
     private Color PopupColor(string light, string dark) =>
@@ -2432,14 +2640,15 @@ public partial class MainPage : ContentPage
         IReadOnlyList<string> choices,
         string cancelLabel = "Cancel",
         IReadOnlyList<string>? icons = null,
-        string popupIcon = "✦")
+        string popupIcon = "✦",
+        bool keepOpenOnSelection = false)
     {
         var completion = BeginPopup(title, message, popupIcon);
         for (var i = 0; i < choices.Count; i++)
         {
             var choice = choices[i];
             var icon = icons is not null && i < icons.Count ? icons[i] : ChoiceIcon(choice, i);
-            AddPopupChoice(choice, choice, icon, IsDestructive(choice));
+            AddPopupChoice(choice, choice, icon, IsDestructive(choice), keepOpenOnSelection);
         }
         ModalButtons.Children.Add(CreatePopupAction(cancelLabel, null, primary: false, destructive: false));
         return completion.Task;
@@ -2450,18 +2659,29 @@ public partial class MainPage : ContentPage
         string message,
         string placeholder,
         int maxLength,
-        string? initialValue = null)
+        string? initialValue = null,
+        bool keepModalOpenOnCompletion = false)
     {
         var completion = BeginPopup(title, message, "✎");
         // Keep task editing more compact than the generic dialogs, but provide a real
         // multi-line editor with its own scrolling for long task descriptions.
-        _compactEditorPopup = true;
+        _compactEditorPopup = !keepModalOpenOnCompletion;
         var availablePageWidth = Width > 0 ? Width : 360d;
-        var promptWidth = Math.Max(220d, Math.Min(300d, availablePageWidth - 40d));
-        ModalCard.WidthRequest = promptWidth;
-        ModalCard.MaximumWidthRequest = promptWidth;
-        ModalCard.MaximumHeightRequest = Math.Min(460d, Math.Max(280d, Height - 56d));
-        ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 130d, 190d);
+        if (keepModalOpenOnCompletion)
+        {
+            ModalCard.WidthRequest = -1;
+            ModalCard.MaximumWidthRequest = 380;
+            ModalCard.MaximumHeightRequest = Math.Max(280d, Height - 56d);
+            ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 140d, 300d);
+        }
+        else
+        {
+            var promptWidth = Math.Max(220d, Math.Min(300d, availablePageWidth - 40d));
+            ModalCard.WidthRequest = promptWidth;
+            ModalCard.MaximumWidthRequest = promptWidth;
+            ModalCard.MaximumHeightRequest = Math.Min(460d, Math.Max(280d, Height - 56d));
+            ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 130d, 190d);
+        }
 
         var input = new Editor
         {
@@ -2505,28 +2725,44 @@ public partial class MainPage : ContentPage
         var actions = new Grid { ColumnSpacing = 9 };
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        actions.Add(CreatePopupAction("Cancel", null, primary: false, destructive: false), 0, 0);
+        actions.Add(CreatePopupAction(keepModalOpenOnCompletion ? "Back to task options" : "Cancel", null, primary: false, destructive: false,
+            customAction: () =>
+            {
+                if (keepModalOpenOnCompletion) CompletePopupInPlace(null);
+                else CompletePopup(null);
+            }), 0, 0);
         actions.Add(CreatePopupAction("Save changes", "__SAVE__", primary: true, destructive: false, customAction: () =>
         {
-            CompletePopup(input.Text ?? string.Empty);
+            if (keepModalOpenOnCompletion) CompletePopupInPlace(input.Text ?? string.Empty);
+            else CompletePopup(input.Text ?? string.Empty);
         }), 1, 0);
         ModalButtons.Children.Add(actions);
         return completion.Task;
     }
 
-    private async Task<bool> ShowConfirmationPopupAsync(string title, string message, string confirmLabel, bool destructive = false)
+    private async Task<bool> ShowConfirmationPopupAsync(string title, string message, string confirmLabel, bool destructive = false, bool keepModalOpenOnDismiss = false)
     {
         var completion = BeginPopup(title, message, destructive ? "⌫" : "?");
         var actions = new Grid { ColumnSpacing = 9 };
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        actions.Add(CreatePopupAction("Cancel", null, primary: false, destructive: false), 0, 0);
-        actions.Add(CreatePopupAction(confirmLabel, confirmLabel, primary: !destructive, destructive: destructive), 1, 0);
+        actions.Add(CreatePopupAction(keepModalOpenOnDismiss ? "Back to task options" : "Cancel", null, primary: false, destructive: false,
+            customAction: () =>
+            {
+                if (keepModalOpenOnDismiss) CompletePopupInPlace(null);
+                else CompletePopup(null);
+            }), 0, 0);
+        actions.Add(CreatePopupAction(confirmLabel, confirmLabel, primary: !destructive, destructive: destructive,
+            customAction: () =>
+            {
+                if (keepModalOpenOnDismiss) CompletePopupInPlace(confirmLabel);
+                else CompletePopup(confirmLabel);
+            }), 1, 0);
         ModalButtons.Children.Add(actions);
         return await completion.Task == confirmLabel;
     }
 
-    private async Task ShowInfoPopupAsync(string title, string message, bool isError = false, byte[]? previewBytes = null)
+    private async Task ShowInfoPopupAsync(string title, string message, bool isError = false, byte[]? previewBytes = null, bool keepModalOpenOnDismiss = false)
     {
         var completion = BeginPopup(title, message, isError ? "!" : "✓");
         if (!isError && previewBytes is { Length: > 0 })
@@ -2551,7 +2787,12 @@ public partial class MainPage : ContentPage
                 Content = previewImage
             });
         }
-        ModalButtons.Children.Add(CreatePopupAction("Got it", "OK", primary: true, destructive: false));
+        ModalButtons.Children.Add(CreatePopupAction("Got it", "OK", primary: true, destructive: false,
+            customAction: () =>
+            {
+                if (keepModalOpenOnDismiss) CompletePopupInPlace("OK");
+                else CompletePopup("OK");
+            }));
         await completion.Task;
     }
 
@@ -2602,7 +2843,7 @@ public partial class MainPage : ContentPage
         return border;
     }
 
-    private void AddPopupChoice(string label, string result, string icon, bool destructive)
+    private void AddPopupChoice(string label, string result, string icon, bool destructive, bool keepOpenOnSelection = false)
     {
         var row = new Grid { ColumnSpacing = 11, Padding = new Thickness(11, 8) };
         row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(34)));
@@ -2660,7 +2901,7 @@ public partial class MainPage : ContentPage
         }, 1, 0);
         row.Add(new Label
         {
-            Text = LocalizationService.Translate("›"),
+            Text = LocalizationService.IsPersian ? "‹" : "›",
             FontSize = 22,
             TextColor = PopupColor("#A29AB7", "#9189A8"),
             VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center,
@@ -2677,7 +2918,11 @@ public partial class MainPage : ContentPage
             Content = row
         };
         var tap = new TapGestureRecognizer();
-        tap.Tapped += (_, _) => CompletePopup(result);
+        tap.Tapped += (_, _) =>
+        {
+            if (keepOpenOnSelection) CompletePopupInPlace(result);
+            else CompletePopup(result);
+        };
         border.GestureRecognizers.Add(tap);
         ModalBody.Children.Add(border);
     }
@@ -2705,16 +2950,67 @@ public partial class MainPage : ContentPage
 
     private void ModalBackdrop_Tapped(object? sender, TappedEventArgs e)
     {
-        // A tap on the dimmed area cancels/dismisses the current modal.
+        // Backdrop taps follow the same parent-navigation rules as Android Back:
+        // connected settings/task subpages return to their parent menu; root pages close.
         // Taps inside ModalCard are handled by its child controls instead.
         if (_popupCompletionSource is not null)
-            CompletePopup(null);
+        {
+            if (_settingsFlowActive && !string.Equals(_currentSettingsPage, "Settings", StringComparison.Ordinal))
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                    await NavigateSettingsPageAsync("Settings", animate: true, reverse: true));
+            }
+            else if (_taskPopupFlowActive && _taskPopupSubpageActive)
+            {
+                CompletePopupInPlace(null);
+            }
+            else
+            {
+                CompletePopup(null);
+            }
+        }
+    }
+
+    private void CompletePopupInPlace(string? result)
+    {
+        // Fade the current content out before releasing the awaiting flow. This keeps
+        // the modal card and dimmed backdrop steady while the next page is prepared.
+        var completion = _popupCompletionSource;
+        _popupCompletionSource = null;
+        if (completion is not null)
+        {
+            ModalCard.InputTransparent = true;
+            _ = CompletePopupInPlaceAsync(completion, result);
+        }
+    }
+
+    private async Task CompletePopupInPlaceAsync(TaskCompletionSource<string?> completion, string? result)
+    {
+        try
+        {
+            var exitX = LocalizationService.IsPersian ? -12d : 12d;
+            await Task.WhenAll(
+                ModalBodyScroll.FadeTo(0, 85, Easing.CubicIn),
+                ModalButtons.FadeTo(0, 85, Easing.CubicIn),
+                ModalBodyScroll.TranslateTo(exitX, 0, 85, Easing.CubicIn),
+                ModalButtons.TranslateTo(exitX, 0, 85, Easing.CubicIn),
+                AnimatePopupHeaderAsync(0, exitX, 85, Easing.CubicIn));
+        }
+        catch (OperationCanceledException)
+        {
+            // The replacement page can take over if another transition is requested.
+        }
+        finally
+        {
+            completion.TrySetResult(result);
+        }
     }
 
     private void CompletePopup(string? result)
     {
         ModalOverlay.IsVisible = false;
         ModalOverlay.Opacity = 0;
+        ModalCard.InputTransparent = false;
         PageContent.InputTransparent = false;
         ModalCard.Scale = 0.96;
         ModalCard.MinimumHeightRequest = -1;
@@ -2722,6 +3018,7 @@ public partial class MainPage : ContentPage
         ModalButtons.Opacity = 1;
         ModalBodyScroll.TranslationX = 0;
         ModalButtons.TranslationX = 0;
+        SetPopupHeaderVisualState(1, 0);
         ModalBody.Children.Clear();
         ModalButtons.Children.Clear();
         var completion = _popupCompletionSource;
