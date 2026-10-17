@@ -374,20 +374,21 @@ public sealed class AndroidWallpaperService : IWallpaperService
             var numberText = row.Task.IsCompleted ? "✓" : (startingNumber + i + 1).ToString("00", CultureInfo.InvariantCulture);
             canvas.DrawText(numberText, badgeCenterX, centerY + numberPaint.TextSize * 0.34f, numberPaint);
 
-            // Every row reserves the same small clock symbol. Upcoming enabled reminders
-            // are vivid; unset, expired, completed, or disabled reminders stay smoky.
-            // Make the alarm clock visibly readable on phone-sized lock screens.
-            // Keep equal geometry for enabled and disabled reminders; only tint changes.
+            // Reserve the clock's horizontal slot for every row so task titles remain
+            // aligned, but draw the symbol only when this task currently has an active,
+            // future reminder. Disabling/removing an alarm therefore removes the icon
+            // from the next generated wallpaper instead of leaving a smoky stale clock.
             var clockRadius = Math.Clamp(bodySize * 0.25f, 10f, 16f);
             var clockCenterX = badgeCenterX + badgeRadius + clockRadius + Math.Max(5f, bodySize * 0.12f);
             clockCenterX = Math.Min(clockCenterX, textX - clockRadius - 5f);
-            var clockColor = row.Task.IsReminderActive
-                ? (dark ? AndroidColor.Rgb(197, 176, 255) : AndroidColor.Rgb(112, 76, 211))
-                : (dark ? AndroidColor.Argb(95, 193, 193, 207) : AndroidColor.Argb(105, 100, 105, 120));
-            using (var clockPaint = new AndroidPaint { AntiAlias = true, Color = clockColor })
+            if (row.Task.IsReminderActive)
             {
+                var clockColor = dark
+                    ? AndroidColor.Rgb(197, 176, 255)
+                    : AndroidColor.Rgb(112, 76, 211);
+                using var clockPaint = new AndroidPaint { AntiAlias = true, Color = clockColor };
                 clockPaint.SetStyle(AndroidPaint.Style.Stroke);
-                clockPaint.StrokeWidth = row.Task.IsReminderActive ? Math.Max(2.8f, bodySize * 0.060f) : Math.Max(2.2f, bodySize * 0.050f);
+                clockPaint.StrokeWidth = Math.Max(2.8f, bodySize * 0.060f);
                 canvas.DrawCircle(clockCenterX, centerY, clockRadius, clockPaint);
                 canvas.DrawLine(clockCenterX, centerY, clockCenterX, centerY - clockRadius * 0.48f, clockPaint);
                 canvas.DrawLine(clockCenterX, centerY, clockCenterX + clockRadius * 0.36f, centerY + clockRadius * 0.20f, clockPaint);
