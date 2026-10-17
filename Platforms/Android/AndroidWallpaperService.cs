@@ -378,7 +378,9 @@ public sealed class AndroidWallpaperService : IWallpaperService
             // aligned, but draw the symbol only when this task currently has an active,
             // future reminder. Disabling/removing an alarm therefore removes the icon
             // from the next generated wallpaper instead of leaving a smoky stale clock.
-            var clockRadius = Math.Clamp(bodySize * 0.25f, 10f, 16f);
+            // Larger clock indicator: keep it legible on phone lock screens while
+            // the reserved text slot below continues to protect title alignment.
+            var clockRadius = Math.Clamp(bodySize * 0.37f, 14f, 22f);
             var clockCenterX = badgeCenterX + badgeRadius + clockRadius + Math.Max(5f, bodySize * 0.12f);
             clockCenterX = Math.Min(clockCenterX, textX - clockRadius - 5f);
             if (row.Task.IsReminderActive)
@@ -388,10 +390,10 @@ public sealed class AndroidWallpaperService : IWallpaperService
                     : AndroidColor.Rgb(112, 76, 211);
                 using var clockPaint = new AndroidPaint { AntiAlias = true, Color = clockColor };
                 clockPaint.SetStyle(AndroidPaint.Style.Stroke);
-                clockPaint.StrokeWidth = Math.Max(2.8f, bodySize * 0.060f);
+                clockPaint.StrokeWidth = Math.Max(3.8f, bodySize * 0.082f);
                 canvas.DrawCircle(clockCenterX, centerY, clockRadius, clockPaint);
-                canvas.DrawLine(clockCenterX, centerY, clockCenterX, centerY - clockRadius * 0.48f, clockPaint);
-                canvas.DrawLine(clockCenterX, centerY, clockCenterX + clockRadius * 0.36f, centerY + clockRadius * 0.20f, clockPaint);
+                canvas.DrawLine(clockCenterX, centerY, clockCenterX, centerY - clockRadius * 0.50f, clockPaint);
+                canvas.DrawLine(clockCenterX, centerY, clockCenterX + clockRadius * 0.39f, centerY + clockRadius * 0.20f, clockPaint);
             }
 
             var foreground = AndroidColor.ParseColor(

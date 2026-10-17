@@ -289,7 +289,7 @@ public partial class MainPage : ContentPage
         var completion = BeginPopup(
             "New reminder settings",
             "Enter the reminder, choose its color, and optionally set an alarm before adding it.",
-            "◷");
+            "options");
         _compactEditorPopup = true;
         var availablePageWidth = Width > 0 ? Width : 360d;
         var popupWidth = Math.Max(270d, Math.Min(370d, availablePageWidth - 28d));
@@ -297,31 +297,6 @@ public partial class MainPage : ContentPage
         ModalCard.MaximumWidthRequest = popupWidth;
         ModalCard.MaximumHeightRequest = Math.Max(320d, Math.Min(660d, Height - 32d));
         ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 360d, 230d, 430d);
-
-        // Larger clock mark, matching the user's request for better visibility in settings.
-        var clockBadge = new Border
-        {
-            WidthRequest = 58,
-            HeightRequest = 58,
-            HorizontalOptions = LayoutOptions.Center,
-            Padding = 0,
-            BackgroundColor = PopupColor("#E7E1FF", "#3A3158"),
-            Stroke = new SolidColorBrush(PopupColor("#CFC4FF", "#5A4B82")),
-            StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(19) },
-            Content = new Label
-            {
-                Text = "◷",
-                FontSize = 38,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = Color.FromArgb("#8875E8"),
-                HorizontalTextAlignment = TextAlignment.Center,
-                VerticalTextAlignment = TextAlignment.Center,
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions = LayoutOptions.Center
-            }
-        };
-        ModalBody.Children.Add(clockBadge);
 
         ModalBody.Children.Add(new Label
         {
@@ -752,7 +727,7 @@ public partial class MainPage : ContentPage
             "Task options",
             $"Choose what to do with ‘{task.Title}’. ",
             new[] { "Edit task", "Change row color", "Set / edit alarm", "Delete task" },
-            icons: new[] { "edit", "palette", "◷", "trash" },
+            icons: new[] { "edit", "palette", "alarm", "trash" },
             popupIcon: "options");
 
         switch (action)
@@ -795,7 +770,7 @@ public partial class MainPage : ContentPage
         var completion = BeginPopup(
             "Task alarm",
             "Choose a date and time for a one-time reminder. Android may delay reminders slightly if exact-alarm access is disabled.",
-            "◷");
+            "alarm");
 
         _compactEditorPopup = true;
         var availablePageWidth = Width > 0 ? Width : 360d;
@@ -804,29 +779,6 @@ public partial class MainPage : ContentPage
         ModalCard.MaximumWidthRequest = popupWidth;
         ModalCard.MaximumHeightRequest = Math.Min(500d, Math.Max(300d, Height - 48d));
         ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 430d, 170d, 250d);
-
-        ModalBody.Children.Add(new Border
-        {
-            WidthRequest = 58,
-            HeightRequest = 58,
-            HorizontalOptions = LayoutOptions.Center,
-            Padding = 0,
-            BackgroundColor = PopupColor("#E7E1FF", "#3A3158"),
-            Stroke = new SolidColorBrush(PopupColor("#CFC4FF", "#5A4B82")),
-            StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(19) },
-            Content = new Label
-            {
-                Text = "◷",
-                FontSize = 38,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = Color.FromArgb("#8875E8"),
-                HorizontalTextAlignment = TextAlignment.Center,
-                VerticalTextAlignment = TextAlignment.Center,
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions = LayoutOptions.Center
-            }
-        });
 
         var enabled = new Switch
         {
@@ -1955,13 +1907,30 @@ public partial class MainPage : ContentPage
         ModalMessage.Text = message;
         ModalMessage.IsVisible = !string.IsNullOrWhiteSpace(message);
         var useOptionsIcon = string.Equals(icon, "options", StringComparison.OrdinalIgnoreCase);
-        ModalIconImage.IsVisible = useOptionsIcon;
-        ModalIconLabel.IsVisible = !useOptionsIcon;
+        var useAlarmIcon = string.Equals(icon, "alarm", StringComparison.OrdinalIgnoreCase)
+            || icon is "◷" or "⏰";
+        var useVectorIcon = useOptionsIcon || useAlarmIcon;
+        ModalIconImage.IsVisible = useVectorIcon;
+        ModalIconLabel.IsVisible = !useVectorIcon;
         if (useOptionsIcon)
+        {
             ModalIconImage.Source = ImageSource.FromFile("locksy_options_icon.svg");
+            ModalIconImage.WidthRequest = 23;
+            ModalIconImage.HeightRequest = 23;
+        }
+        else if (useAlarmIcon)
+        {
+            ModalIconImage.Source = ImageSource.FromFile("locksy_alarm_icon.svg");
+            ModalIconImage.WidthRequest = 29;
+            ModalIconImage.HeightRequest = 29;
+        }
         else
+        {
             ModalIconLabel.Text = icon;
-        ModalIconLabel.FontSize = icon is "◷" or "⏰" ? 30 : 22;
+            ModalIconImage.WidthRequest = 23;
+            ModalIconImage.HeightRequest = 23;
+        }
+        ModalIconLabel.FontSize = 22;
         ModalBody.Children.Clear();
         ModalButtons.Children.Clear();
         _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
@@ -2184,11 +2153,12 @@ public partial class MainPage : ContentPage
         var vectorIconSource = TaskActionIconSource(icon);
         if (vectorIconSource is not null)
         {
+            var iconSize = string.Equals(icon, "alarm", StringComparison.OrdinalIgnoreCase) ? 32d : 21d;
             iconContent = new Image
             {
                 Source = ImageSource.FromFile(vectorIconSource),
-                WidthRequest = 21,
-                HeightRequest = 21,
+                WidthRequest = iconSize,
+                HeightRequest = iconSize,
                 Aspect = Aspect.AspectFit,
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions = LayoutOptions.Center
@@ -2268,6 +2238,7 @@ public partial class MainPage : ContentPage
     {
         "edit" => "locksy_edit_icon.svg",
         "palette" => "locksy_palette_icon.svg",
+        "alarm" => "locksy_alarm_icon.svg",
         "trash" => "locksy_trash_icon.svg",
         _ => null
     };
