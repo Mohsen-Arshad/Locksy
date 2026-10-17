@@ -121,6 +121,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Tasks.Move(sourceIndex, targetIndex);
     }
 
+    public void RefreshLocalizedTaskTitles()
+    {
+        foreach (var task in Tasks) task.RefreshLocalizedTitle();
+    }
+
     public void RefreshTaskAppearances()
     {
         foreach (var task in Tasks) task.RefreshAppearance();

@@ -28,8 +28,12 @@ public sealed class TodoItem : INotifyPropertyChanged
             if (_title == normalized) return;
             _title = normalized;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayTitle));
         }
     }
+
+    [JsonIgnore]
+    public string DisplayTitle => LocalizationService.PrepareTextForDisplay(Title);
 
     public bool IsCompleted
     {
@@ -122,6 +126,8 @@ public sealed class TodoItem : INotifyPropertyChanged
     public ICommand? DeleteCommand { get; set; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void RefreshLocalizedTitle() => OnPropertyChanged(nameof(DisplayTitle));
 
     public void RefreshAppearance()
     {
