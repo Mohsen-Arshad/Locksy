@@ -195,12 +195,12 @@
                                 StrokeThickness="0"
                                 StrokeShape="RoundRectangle 16" />
                         <Border Padding="8,6"
-                                BackgroundColor="{Binding RowColor}"
+                                BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
                                 Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorder}, Dark={StaticResource LocksyDarkBorder}}"
                                 StrokeThickness="1"
                                 StrokeShape="RoundRectangle 16"
                                 HandlerChanged="TaskRow_HandlerChanged">
-                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="7">
+                        <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="7">
                             <CheckBox Grid.Column="0"
                                       IsChecked="{Binding IsCompleted}"
                                       Color="#8875E8"
@@ -212,14 +212,22 @@
                                    HeightRequest="44"
                                    HorizontalTextAlignment="Center"
                                    VerticalTextAlignment="Center"
-                                   TextColor="{AppThemeBinding Light=#918BA1, Dark=#A7A0BA}"
+                                   TextColor="{AppThemeBinding Light=#77738A, Dark=#C0BCD2}"
                                    HandlerChanged="TaskGrip_HandlerChanged"
                                    AutomationProperties.Name="Drag to reorder" />
-                            <Label Grid.Column="2"
+                            <Ellipse Grid.Column="2"
+                                     WidthRequest="13"
+                                     HeightRequest="13"
+                                     Fill="{Binding RowColor}"
+                                     Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorder}, Dark={StaticResource LocksyDarkBorder}}"
+                                     StrokeThickness="1"
+                                     VerticalOptions="Center"
+                                     AutomationProperties.Name="Selected reminder color" />
+                            <Label Grid.Column="3"
                                    Text="{Binding Title}"
                                    TextDecorations="{Binding TitleDecorations}"
                                    FontSize="15"
-                                   TextColor="{Binding RowTextColor}"
+                                   TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
                                    VerticalTextAlignment="Center"
                                    LineBreakMode="WordWrap"
                                    HandlerChanged="TaskTitle_HandlerChanged">
@@ -227,14 +235,14 @@
                                     <TapGestureRecognizer Tapped="TaskTitle_Tapped" />
                                 </Label.GestureRecognizers>
                             </Label>
-                            <Button Grid.Column="3"
+                            <Button Grid.Column="4"
                                     Text="⋯"
                                     FontSize="22"
                                     WidthRequest="38"
                                     HeightRequest="42"
                                     Padding="0"
                                     BackgroundColor="Transparent"
-                                    TextColor="{AppThemeBinding Light=#687087, Dark=#BFC4D7}"
+                                    TextColor="{AppThemeBinding Light=#5D5A70, Dark=#D5D1E4}"
                                     Clicked="TaskOptionsButton_Clicked"
                                     AutomationProperties.Name="Task options"
                                     VerticalOptions="Center" />
