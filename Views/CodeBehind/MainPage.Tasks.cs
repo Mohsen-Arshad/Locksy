@@ -24,18 +24,18 @@ public partial class MainPage : ContentPage
         var direction = TaskTextDirectionHelper.Resolve(
             text, TaskTextDirection.Auto, LocalizationService.IsPersian);
         NewTaskEntry.FlowDirection = direction == TaskTextDirection.RightToLeft
-            ? Microsoft.Maui.Controls.FlowDirection.RightToLeft
-            : Microsoft.Maui.Controls.FlowDirection.LeftToRight;
+            ? Microsoft.Maui.FlowDirection.RightToLeft
+            : Microsoft.Maui.FlowDirection.LeftToRight;
     }
 
-    private static Microsoft.Maui.Controls.FlowDirection ResolveTaskFlowDirection(
+    private static Microsoft.Maui.FlowDirection ResolveTaskFlowDirection(
         string? text, TaskTextDirection requestedDirection)
     {
         var direction = TaskTextDirectionHelper.Resolve(
             text, requestedDirection, LocalizationService.IsPersian);
         return direction == TaskTextDirection.RightToLeft
-            ? Microsoft.Maui.Controls.FlowDirection.RightToLeft
-            : Microsoft.Maui.Controls.FlowDirection.LeftToRight;
+            ? Microsoft.Maui.FlowDirection.RightToLeft
+            : Microsoft.Maui.FlowDirection.LeftToRight;
     }
 
     private async void AddTaskEntry_Completed(object? sender, EventArgs e)
