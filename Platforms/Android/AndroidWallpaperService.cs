@@ -221,8 +221,9 @@ public sealed class AndroidWallpaperService : IWallpaperService
         var titleSize = Math.Clamp(width * 0.071f, 42f, 82f);
         var subtitleSize = Math.Clamp(width * 0.029f, 20f, 34f);
         // Keep Creation Date typography consistent across every wallpaper layout.
-        // The values remain responsive to screen width, but no longer vary by layout.
-        var creationLabelSize = titleSize * 0.62f;
+        // Persian glyphs have a smaller visual x-height than the uppercase English label,
+        // so give the Persian label a slightly larger em size to achieve similar perceived weight.
+        var creationLabelSize = titleSize * (LocalizationService.IsPersian ? 0.80f : 0.62f);
         var creationDateSize = subtitleSize * 0.72f;
         var creationDate = LocalizationService.IsPersian
             ? LocalizationService.LocalizeDigits(DateTime.Now.ToString("dddd، dd MMMM", CultureInfo.GetCultureInfo("fa-IR")))
