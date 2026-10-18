@@ -65,13 +65,13 @@ public partial class MainPage : ContentPage
     private bool _pendingNewTaskReminderEnabled;
     private DateTime? _pendingNewTaskReminderAt;
     private DateTime _lastBackPressUtc = DateTime.MinValue;
-    private bool _compactEditorPopup;
     private bool _settingsTransitionRunning;
     private bool _settingsFlowActive;
     private string _currentSettingsPage = "Settings";
     private bool _taskPopupFlowActive;
     private bool _taskPopupSubpageActive;
     private bool _layoutPreviewActive;
+    private double _popupPreferredWidth = 380d;
 #if ANDROID
     private readonly Dictionary<Android.Views.View, WeakReference<Label>> _nativeTitleViews = new();
     private readonly Dictionary<Android.Views.View, WeakReference<Border>> _nativeTaskRows = new();
@@ -142,29 +142,39 @@ public partial class MainPage : ContentPage
     protected override void OnSizeAllocated(double width, double height)
     {
         base.OnSizeAllocated(width, height);
-
         if (width <= 0 || height <= 0 || ModalCard is null || ModalBodyScroll is null)
             return;
 
-        // Leave room for the page edges and Android system bars. The popup's body
-        // absorbs the remaining height and scrolls independently of its fixed footer.
-        // The schematic preview needs the entire phone canvas visible at once. Give it
-        // a near-full-height card and a larger natural body viewport; ordinary dialogs
-        // keep their existing compact sizing and scrolling behavior.
-        var modalHeight = _layoutPreviewActive
-            ? Math.Max(360d, height - 24d)
-            : _compactEditorPopup
-                ? Math.Min(460d, Math.Max(280d, height - 56d))
-                : Math.Max(280d, height - 56d);
-        var bodyHeight = _layoutPreviewActive
-            ? Math.Clamp(height - 245d, 280d, 560d)
-            : _compactEditorPopup
-                ? Math.Clamp(height - 470d, 130d, 190d)
-                : Math.Clamp(height - 470d, 140d, 300d);
-        if (Math.Abs(ModalCard.MaximumHeightRequest - modalHeight) > 1d)
-            ModalCard.MaximumHeightRequest = modalHeight;
-        if (Math.Abs(ModalBodyScroll.MaximumHeightRequest - bodyHeight) > 1d)
-            ModalBodyScroll.MaximumHeightRequest = bodyHeight;
+        ApplyResponsivePopupBounds(width, height);
+    }
+
+    /// <summary>
+    /// One responsive sizing policy for every in-app popup. The card sizes to its content
+    /// until it reaches the safe viewport cap; only the body scrolls when content is too tall.
+    /// The header and action footer therefore remain visible on short screens, while short
+    /// dialogs do not reserve a giant empty body region.
+    /// </summary>
+    private void ApplyResponsivePopupBounds(double? availableWidth = null, double? availableHeight = null)
+    {
+        var viewportWidth = availableWidth ?? Width;
+        var viewportHeight = availableHeight ?? Height;
+        if (viewportWidth <= 0 || viewportHeight <= 0 || ModalCard is null || ModalBodyScroll is null)
+            return;
+
+        var cardWidth = Math.Min(_popupPreferredWidth, Math.Max(120d, viewportWidth - 28d));
+        var cardMaxHeight = Math.Max(160d, viewportHeight - 40d);
+        // Reserve room for header, optional message, card padding, row spacing and fixed footer.
+        // All popup types use the same cap instead of maintaining fragile per-dialog constants.
+        var bodyMaxHeight = Math.Clamp(viewportHeight - 300d, 72d, 520d);
+
+        if (Math.Abs(ModalCard.WidthRequest - cardWidth) > 1d)
+            ModalCard.WidthRequest = cardWidth;
+        if (Math.Abs(ModalCard.MaximumWidthRequest - cardWidth) > 1d)
+            ModalCard.MaximumWidthRequest = cardWidth;
+        if (Math.Abs(ModalCard.MaximumHeightRequest - cardMaxHeight) > 1d)
+            ModalCard.MaximumHeightRequest = cardMaxHeight;
+        if (Math.Abs(ModalBodyScroll.MaximumHeightRequest - bodyMaxHeight) > 1d)
+            ModalBodyScroll.MaximumHeightRequest = bodyMaxHeight;
     }
 
     protected override void OnAppearing()
@@ -268,8 +278,7 @@ public partial class MainPage : ContentPage
             "settings");
 
         // Settings is a single persistent modal. Sub-pages replace its content instead
-        // of completing this popup and opening another one on top of it.
-        ModalCard.MinimumHeightRequest = Math.Min(420d, ModalCard.MaximumHeightRequest);
+        // of completing this popup and opening another one on top of it. It stays content-sized.
         await NavigateSettingsPageAsync("Settings", animate: false);
         await completion.Task;
         _settingsFlowActive = false;
@@ -1030,13 +1039,8 @@ public partial class MainPage : ContentPage
             "New reminder settings",
             "Enter the reminder, choose its color, and optionally set an alarm before adding it.",
             "options");
-        _compactEditorPopup = true;
-        var availablePageWidth = Width > 0 ? Width : 360d;
-        var popupWidth = Math.Max(270d, Math.Min(370d, availablePageWidth - 28d));
-        ModalCard.WidthRequest = popupWidth;
-        ModalCard.MaximumWidthRequest = popupWidth;
-        ModalCard.MaximumHeightRequest = Math.Max(320d, Math.Min(660d, Height - 32d));
-        ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 360d, 230d, 430d);
+        _popupPreferredWidth = 370d;
+        ApplyResponsivePopupBounds();
 
         ModalBody.Children.Add(new Label
         {
@@ -1320,9 +1324,8 @@ public partial class MainPage : ContentPage
         ModalButtons.Children.Add(actions);
 
         var result = await completion.Task;
-        _compactEditorPopup = false;
-        ModalCard.WidthRequest = -1;
-        ModalCard.MaximumWidthRequest = 380;
+        _popupPreferredWidth = 380d;
+        ApplyResponsivePopupBounds();
         if (result is null) return;
 
         _viewModel.NewTaskText = (draftTitleEntry.Text ?? string.Empty).Trim();
@@ -1566,23 +1569,8 @@ public partial class MainPage : ContentPage
             "Choose a date and time for a one-time reminder. Android may delay reminders slightly if exact-alarm access is disabled.",
             "alarm");
 
-        _compactEditorPopup = !keepModalOpenAfterEdit;
-        if (keepModalOpenAfterEdit)
-        {
-            ModalCard.WidthRequest = -1;
-            ModalCard.MaximumWidthRequest = 380;
-            ModalCard.MaximumHeightRequest = Math.Max(280d, Height - 56d);
-            ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 140d, 300d);
-        }
-        else
-        {
-            var availablePageWidth = Width > 0 ? Width : 360d;
-            var popupWidth = Math.Max(240d, Math.Min(330d, availablePageWidth - 36d));
-            ModalCard.WidthRequest = popupWidth;
-            ModalCard.MaximumWidthRequest = popupWidth;
-            ModalCard.MaximumHeightRequest = Math.Min(500d, Math.Max(300d, Height - 48d));
-            ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 430d, 170d, 250d);
-        }
+        _popupPreferredWidth = keepModalOpenAfterEdit ? 380d : 330d;
+        ApplyResponsivePopupBounds();
 
         var enabled = new Switch
         {
@@ -1686,9 +1674,8 @@ public partial class MainPage : ContentPage
         ModalButtons.Children.Add(actions);
 
         var result = await completion.Task;
-        _compactEditorPopup = false;
-        ModalCard.WidthRequest = -1;
-        ModalCard.MaximumWidthRequest = 380;
+        _popupPreferredWidth = 380d;
+        ApplyResponsivePopupBounds();
         if (result != "SAVE_ALARM") return;
 
         if (!enabled.IsToggled)
@@ -3006,16 +2993,9 @@ public partial class MainPage : ContentPage
 
         var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
         _popupCompletionSource = completion;
-        _compactEditorPopup = false;
-        ModalCard.WidthRequest = -1;
-        ModalCard.MaximumWidthRequest = 380;
-        ModalCard.MaximumHeightRequest = _layoutPreviewActive
-            ? Math.Max(360d, Height - 24d)
-            : Math.Max(280d, Height - 56d);
-        ModalBodyScroll.MaximumHeightRequest = _layoutPreviewActive
-            ? Math.Clamp(Height - 245d, 280d, 560d)
-            : Math.Clamp(Height - 470d, 140d, 300d);
+        _popupPreferredWidth = 380d;
         ModalCard.MinimumHeightRequest = -1;
+        ApplyResponsivePopupBounds();
         ModalBodyScroll.Opacity = reuseVisibleModal ? 0 : 1;
         ModalButtons.Opacity = reuseVisibleModal ? 0 : 1;
         var transitionStartX = (LocalizationService.IsPersian ? -1d : 1d) * 16d;
@@ -3160,23 +3140,8 @@ public partial class MainPage : ContentPage
         var completion = BeginPopup(title, message, "✎");
         // Keep task editing more compact than the generic dialogs, but provide a real
         // multi-line editor with its own scrolling for long task descriptions.
-        _compactEditorPopup = !keepModalOpenOnCompletion;
-        var availablePageWidth = Width > 0 ? Width : 360d;
-        if (keepModalOpenOnCompletion)
-        {
-            ModalCard.WidthRequest = -1;
-            ModalCard.MaximumWidthRequest = 380;
-            ModalCard.MaximumHeightRequest = Math.Max(280d, Height - 56d);
-            ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 140d, 300d);
-        }
-        else
-        {
-            var promptWidth = Math.Max(220d, Math.Min(300d, availablePageWidth - 40d));
-            ModalCard.WidthRequest = promptWidth;
-            ModalCard.MaximumWidthRequest = promptWidth;
-            ModalCard.MaximumHeightRequest = Math.Min(460d, Math.Max(280d, Height - 56d));
-            ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 130d, 190d);
-        }
+        _popupPreferredWidth = keepModalOpenOnCompletion ? 380d : 300d;
+        ApplyResponsivePopupBounds();
 
         var input = new Editor
         {
@@ -3513,6 +3478,8 @@ public partial class MainPage : ContentPage
         PageContent.InputTransparent = false;
         ModalCard.Scale = 0.96;
         ModalCard.MinimumHeightRequest = -1;
+        _popupPreferredWidth = 380d;
+        ApplyResponsivePopupBounds();
         ModalBodyScroll.Opacity = 1;
         ModalButtons.Opacity = 1;
         ModalBodyScroll.TranslationX = 0;
