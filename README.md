@@ -30,13 +30,6 @@ dotnet restore .\Locksy.csproj
 dotnet build .\Locksy.csproj -f net9.0-android -c Debug
 ```
 
-For the project's full source-presence and platform-guard checks followed by a Debug build, run:
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\VERIFY-AND-BUILD-v1.3.0.ps1
-```
-
 Open `Locksy.sln`, restore packages, select an Android device/emulator, and run.
 
 ## Android release metadata
