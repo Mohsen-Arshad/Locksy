@@ -107,6 +107,8 @@ public static class LocalizationService
         ["Please check your internet connection and try again."] = "اتصال اینترنت را بررسی کن و دوباره تلاش کن.",
         ["Please select an image smaller than 25 MB."] = "تصویری کوچک‌تر از ۲۵ مگابایت انتخاب کن.",
         ["Version"] = "نسخه",
+        ["Locksy could not start."] = "برنامهٔ Locksy اجرا نشد.",
+        ["Please close and reopen the app."] = "برنامه را ببند و دوباره باز کن.",
         ["Open GitHub"] = "بازکردن گیت‌هاب",
         ["GitHubProfileLabel"] = "پروفایل گیت‌هاب سازنده",
         ["Reminder title"] = "عنوان یادآور",

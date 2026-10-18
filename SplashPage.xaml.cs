@@ -1,4 +1,5 @@
 using Microsoft.Maui.ApplicationModel;
+using System.Diagnostics;
 using Locksy.Helpers;
 using Locksy.Models;
 using Locksy.Services;
@@ -11,6 +12,7 @@ public partial class SplashPage : ContentPage
     private bool _transitionStarted;
     private CancellationTokenSource? _decorationAnimationCts;
     private MainPage? _preparedMainPage;
+    private Exception? _mainPagePreparationError;
 
     public SplashPage()
     {
@@ -77,22 +79,32 @@ public partial class SplashPage : ContentPage
             await Task.Delay(3500, _decorationAnimationCts.Token);
             await mainPagePreparation;
 
+            if (_preparedMainPage is null)
+            {
+                ShowStartupFailure(_mainPagePreparationError);
+                return;
+            }
+
             // Crossfade once into the already-created page; do not recreate it at transition time.
             await ReturnToMainPageAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Debug.WriteLine($"[Locksy startup] Splash transition failed: {ex}");
             // If animation is interrupted by a lifecycle change, continue to the main
             // page. Transition guard prevents duplicate navigation or a second splash.
             try
             {
                 await ReturnToMainPageAsync();
             }
-            catch
+            catch (Exception navigationException)
             {
+                Debug.WriteLine($"[Locksy startup] Fallback navigation failed: {navigationException}");
                 if (Application.Current?.Windows.FirstOrDefault()?.Page is NavigationPage navigationPage
                     && navigationPage.CurrentPage is MainPage mainPage)
                     mainPage.Opacity = 1;
+                else
+                    ShowStartupFailure(navigationException);
             }
         }
     }
@@ -112,6 +124,11 @@ public partial class SplashPage : ContentPage
             });
         }
         catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _mainPagePreparationError = ex;
+            Debug.WriteLine($"[Locksy startup] MainPage preparation failed: {ex}");
+        }
     }
 
     private async Task ReturnToMainPageAsync()
@@ -121,14 +138,19 @@ public partial class SplashPage : ContentPage
 
         _transitionStarted = true;
         var window = Window ?? Application.Current?.Windows.FirstOrDefault();
-        var mainPage = _preparedMainPage ?? new MainPage(startHidden: true);
+        MainPage? mainPage = _preparedMainPage;
         _preparedMainPage = null;
-        // Re-hide just the content; the themed page background stays opaque during
-        // the native NavigationPage transition, so there is no black intermediate frame.
-        mainPage.PrepareForStartupReveal();
 
         try
         {
+            // Construct inside the guarded section. A constructor failure must never be
+            // swallowed by SplashPage with the app left looking permanently loading.
+            mainPage ??= new MainPage(startHidden: true);
+
+            // Re-hide just the content; the themed page background stays opaque during
+            // the native NavigationPage transition, so there is no black intermediate frame.
+            mainPage.PrepareForStartupReveal();
+
             // Let the native Android/MAUI page transition show the splash underneath;
             // reveal the controls at the same time for a smooth slide-and-fade entrance.
             var navigationTask = Navigation.PushAsync(mainPage, animated: true);
@@ -136,8 +158,16 @@ public partial class SplashPage : ContentPage
             var revealTask = mainPage.RevealStartupContentAsync(320);
             await Task.WhenAll(navigationTask, revealTask);
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"[Locksy startup] MainPage navigation failed: {ex}");
+            if (mainPage is null)
+            {
+                ShowStartupFailure(ex);
+                _transitionStarted = false;
+                return;
+            }
+
             try
             {
                 mainPage.ShowStartupContentImmediately();
@@ -152,13 +182,37 @@ public partial class SplashPage : ContentPage
                 }
                 mainPage.CompleteStartupTransition();
             }
-            catch { }
+            catch (Exception fallbackException)
+            {
+                Debug.WriteLine($"[Locksy startup] Immediate navigation fallback failed: {fallbackException}");
+                ShowStartupFailure(fallbackException);
+            }
+            return;
+        }
+
+        if (mainPage is null)
+        {
+            ShowStartupFailure(_mainPagePreparationError);
             return;
         }
 
         mainPage.CompleteStartupTransition();
         try { Navigation.RemovePage(this); }
         catch { /* Navigation may be restoring; the main page remains usable. */ }
+    }
+
+    private void ShowStartupFailure(Exception? exception)
+    {
+        if (exception is not null)
+            Debug.WriteLine($"[Locksy startup] Unable to create the main page: {exception}");
+
+        // Display an explicit failure state instead of leaving the animated splash in
+        // a completed-but-stuck state when startup fails on a device-specific issue.
+        TaglineLabel.Text = LocalizationService.Translate("Locksy could not start.");
+        FooterLabel.Text = LocalizationService.Translate("Please close and reopen the app.");
+        TaglineLabel.Opacity = 1;
+        FooterLabel.Opacity = 1;
+        ProgressFill.ScaleX = 1;
     }
 
     protected override void OnDisappearing()
