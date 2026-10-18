@@ -95,13 +95,18 @@ public partial class MainPage : ContentPage
     {
         InitializeComponent();
         NavigationPage.SetHasNavigationBar(this, false);
+
+        // IMPORTANT: localization refreshes task display titles. Construct and bind the
+        // view model first, otherwise ApplyLocalization dereferences an uninitialized field
+        // and SplashPage can remain visible while its swallowed navigation attempt fails.
+        _viewModel = new MainViewModel(initialTasks);
+        BindingContext = _viewModel;
         ApplyLocalization();
+
         // Keep the themed page surface visible during navigation. Only the content grid
         // starts transparent, so the native page transition never reveals a black window.
         Opacity = 1;
         PageContent.Opacity = startHidden ? 0 : 1;
-        _viewModel = new MainViewModel(initialTasks);
-        BindingContext = _viewModel;
         _wallpaperService = new Platforms.Android.AndroidWallpaperService();
 
         var savedLayout = Preferences.Default.Get(LayoutPreferenceKey, (int)WallpaperLayout.ScreenAware);
