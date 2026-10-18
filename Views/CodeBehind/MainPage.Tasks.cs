@@ -348,9 +348,7 @@ public partial class MainPage : ContentPage
             WidthRequest = 46,
             HeightRequest = 27,
             Padding = 3,
-            BackgroundColor = Color.FromArgb(reminderAlarmEnabled
-                ? "#8875E8"
-                : isDarkTheme ? "#14151F" : "#C8D1E0"),
+            BackgroundColor = GetToggleTrackBackgroundColor(reminderAlarmEnabled, isDarkTheme),
             Stroke = new SolidColorBrush(Color.FromArgb(reminderAlarmEnabled
                 ? (isDarkTheme ? "#A99BFF" : "#8875E8")
                 : isDarkTheme ? "#3B3E52" : "#B7C2D4")),
@@ -407,9 +405,7 @@ public partial class MainPage : ContentPage
 
         void UpdateAlarmToggleVisual()
         {
-            alarmToggleTrack.BackgroundColor = Color.FromArgb(reminderAlarmEnabled
-                ? "#8875E8"
-                : isDarkTheme ? "#14151F" : "#C8D1E0");
+            alarmToggleTrack.BackgroundColor = GetToggleTrackBackgroundColor(reminderAlarmEnabled, isDarkTheme);
             alarmToggleTrack.Stroke = new SolidColorBrush(Color.FromArgb(reminderAlarmEnabled
                 ? (isDarkTheme ? "#A99BFF" : "#8875E8")
                 : isDarkTheme ? "#3B3E52" : "#B7C2D4"));

@@ -379,15 +379,18 @@ public partial class MainPage : ContentPage
         AutoApplySwitch.IsToggled = !AutoApplySwitch.IsToggled;
         UpdateAutoApplyVisual(AutoApplySwitch.IsToggled);
     }
+    private static Color GetToggleTrackBackgroundColor(bool isEnabled, bool isDark) =>
+        Color.FromArgb(isEnabled
+            ? "#8875E8"
+            : isDark ? "#14151F" : "#C8D1E0");
+
     private void UpdateAutoApplyVisual(bool isEnabled)
     {
         if (AutoApplyTrack is null || AutoApplyThumb is null)
             return;
 
         var isDark = (_viewModel.Settings?.IsDarkMode ?? false);
-        AutoApplyTrack.BackgroundColor = Color.FromArgb(isEnabled
-            ? "#8875E8"
-            : isDark ? "#14151F" : "#C8D1E0");
+        AutoApplyTrack.BackgroundColor = GetToggleTrackBackgroundColor(isEnabled, isDark);
         AutoApplyTrack.Stroke = new SolidColorBrush(Color.FromArgb(isEnabled
             ? (isDark ? "#A99BFF" : "#8875E8")
             : isDark ? "#3B3E52" : "#B7C2D4"));

@@ -401,8 +401,8 @@ public partial class MainPage : ContentPage
             // The text-direction glyph needs a little more visual weight than the other action icons.
             // Render it as SVG so its optical center does not depend on font baseline metrics.
             var iconSize = string.Equals(vectorIconSource, "locksy_text_direction_icon.svg", StringComparison.OrdinalIgnoreCase)
-                ? 25d
-                : 21d;
+                ? 23d
+                : 28d;
             iconContent = new Image
             {
                 Source = ImageSource.FromFile(vectorIconSource),
