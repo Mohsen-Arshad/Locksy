@@ -33,7 +33,7 @@ public static class LocalizationService
         ["LIGHT"] = "روشن",
         ["Add a task..."] = "افزودن یک کار...",
         ["＋ Add"] = "＋ افزودن",
-        ["Your list is clear"] = "فهرستت خالی است",
+        ["Your list is clear"] = "فهرست خالی است",
         ["Add your first task. It will be saved on this device."] = "اولین کارت را اضافه کن؛ اطلاعات روی همین دستگاه ذخیره می‌شود.",
         ["Tasks layout"] = "چیدمان کارها",
         ["Tasks below top clock"] = "کارها زیر ساعت بالای صفحه",

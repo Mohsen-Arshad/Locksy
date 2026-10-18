@@ -229,7 +229,7 @@ public partial class MainPage : ContentPage
             HorizontalOptions = LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Center,
             Margin = new Thickness(14, 0, 0, 0),
-            Opacity = isDark ? 0.92 : 0.10,
+            Opacity = isDark ? 0.24 : 0.10,
             InputTransparent = true
         });
         themeSwitch.Add(new Image
@@ -241,7 +241,7 @@ public partial class MainPage : ContentPage
             HorizontalOptions = LayoutOptions.End,
             VerticalOptions = LayoutOptions.Center,
             Margin = new Thickness(0, 0, 14, 0),
-            Opacity = isDark ? 0.10 : 0.92,
+            Opacity = isDark ? 0.10 : 0.24,
             InputTransparent = true
         });
 
@@ -375,13 +375,21 @@ public partial class MainPage : ContentPage
             // followed a long multi-stage animation and also refreshed every task row,
             // which caused a noticeable pause when switching from dark to light.
             await Task.WhenAll(
-                thumb.TranslateTo(isDark ? thumbTravel : 0, 0, 190, Easing.CubicOut),
-                thumb.ScaleTo(0.96, 90, Easing.CubicOut));
-            await thumb.ScaleTo(1, 65, Easing.CubicOut);
+                thumb.TranslateTo(isDark ? thumbTravel : 0, 0, 125, Easing.CubicOut),
+                thumb.ScaleTo(0.97, 55, Easing.CubicOut));
+            await thumb.ScaleTo(1, 40, Easing.CubicOut);
 
+            // Let the final thumb position paint before switching AppTheme. MAUI can
+            // invalidate many AppThemeBindings at once, especially on dark-to-light
+            // transitions; yielding a frame keeps the toggle responsive and visible.
+            await Task.Delay(32);
             ApplyThemePreference(isDark ? ThemePreference.Dark : ThemePreference.Light);
-            // Recreate only the small settings surface so its manually assigned popup
-            // colors match the new theme. Task palette colors are theme-independent.
+            // Let AppThemeBindings paint their new values before reconstructing the
+            // settings popup's manually-colored controls. This avoids doing both visual
+            // updates in one UI turn, which was most noticeable on dark-to-light changes.
+            await Task.Delay(48);
+            // Recreate only the settings surface so its manually assigned popup colors
+            // match the new theme. Task palette colors are theme-independent.
             await NavigateSettingsPageAsync("Settings", animate: false);
         }
         finally
