@@ -223,7 +223,7 @@ public partial class MainPage : ContentPage
         AddTaskButton.Text = LocalizedDisplayText("＋ Add");
         EmptyListTitleLabel.Text = LocalizedDisplayText("Your list is clear");
         EmptyListDescriptionLabel.Text = LocalizedDisplayText("Add your first task. It will be saved on this device.");
-        ClockLayoutCaption.Text = LocalizedDisplayText("Clock layout");
+        ClockLayoutCaption.Text = LocalizedDisplayText("Tasks layout");
         AutoApplyCaption.Text = LocalizedDisplayText("Auto update");
         AutoApplyDescriptionLabel.Text = LocalizedDisplayText("Apply edits when app is in background");
         ClearCompletedButton.Text = LocalizedDisplayText("Clear completed");
@@ -639,13 +639,17 @@ public partial class MainPage : ContentPage
             track.BackgroundColor = isDark ? Color.FromArgb("#29243D") : Color.FromArgb("#E8E1FF");
             track.Stroke = new SolidColorBrush(isDark ? Color.FromArgb("#66568F") : Color.FromArgb("#C6B8FF"));
             activeGlyph.Source = isDark ? "theme_moon_active.svg" : "theme_sun_active.svg";
+            // Keep the movement compact and deterministic. Previously the theme change
+            // followed a long multi-stage animation and also refreshed every task row,
+            // which caused a noticeable pause when switching from dark to light.
             await Task.WhenAll(
-                thumb.TranslateTo(isDark ? thumbTravel : 0, 0, 210, Easing.CubicOut),
-                thumb.ScaleTo(0.94, 90, Easing.CubicIn));
-            await thumb.ScaleTo(1, 100, Easing.SpringOut);
+                thumb.TranslateTo(isDark ? thumbTravel : 0, 0, 190, Easing.CubicOut),
+                thumb.ScaleTo(0.96, 90, Easing.CubicOut));
+            await thumb.ScaleTo(1, 65, Easing.CubicOut);
 
             ApplyThemePreference(isDark ? ThemePreference.Dark : ThemePreference.Light);
-            // Recreate theme-sensitive surfaces in-place; the modal stays open.
+            // Recreate only the small settings surface so its manually assigned popup
+            // colors match the new theme. Task palette colors are theme-independent.
             await NavigateSettingsPageAsync("Settings", animate: false);
         }
         finally
@@ -902,7 +906,9 @@ public partial class MainPage : ContentPage
 #if ANDROID
         MainActivity.RefreshNavigationBarTheme();
 #endif
-        _viewModel.RefreshTaskAppearances();
+        // Task tint and title colors come from each task's selected palette, not from
+        // AppTheme. RefreshTaskAppearances() only emits two property-change notifications
+        // per task and needlessly forces a whole CollectionView refresh on theme changes.
         var status = preference == ThemePreference.Dark
             ? "Dark theme selected."
             : "Light theme selected.";

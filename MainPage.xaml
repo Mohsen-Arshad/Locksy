@@ -119,8 +119,8 @@
             <CollectionView.EmptyView>
                 <VerticalStackLayout Padding="16,34" Spacing="10" HorizontalOptions="Center" VerticalOptions="Center">
                     <Image Source="empty_list_add_icon.png"
-                           WidthRequest="46"
-                           HeightRequest="46"
+                           WidthRequest="92"
+                           HeightRequest="92"
                            Aspect="AspectFit"
                            HorizontalOptions="Center"
                            VerticalOptions="Center"
@@ -212,7 +212,7 @@
         <!-- Wallpaper layout settings -->
         <Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*" ColumnSpacing="10" RowSpacing="4">
             <Label x:Name="ClockLayoutCaption" Grid.Row="0" Grid.Column="0"
-                   Text="Clock layout"
+                   Text="Tasks layout"
                    FontSize="12"
                    FontAttributes="Bold"
                    TextColor="{AppThemeBinding Light=#667085, Dark=#C4C8DA}"
