@@ -10,8 +10,8 @@
     <Nullable>enable</Nullable>
     <ApplicationTitle>Locksy</ApplicationTitle>
     <ApplicationId>com.mohsen.locksy</ApplicationId>
-    <ApplicationDisplayVersion>1.2.6</ApplicationDisplayVersion>
-    <ApplicationVersion>16</ApplicationVersion>
+    <ApplicationDisplayVersion>1.2.8</ApplicationDisplayVersion>
+    <ApplicationVersion>18</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
     <TargetSdkVersion>35</TargetSdkVersion>
     <AndroidUseLatestPlatformSdk>true</AndroidUseLatestPlatformSdk>
