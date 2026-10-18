@@ -5,6 +5,7 @@ using Locksy.Services;
 using Locksy.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.Layouts;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
 
@@ -147,12 +148,19 @@ public partial class MainPage : ContentPage
 
         // Leave room for the page edges and Android system bars. The popup's body
         // absorbs the remaining height and scrolls independently of its fixed footer.
-        var modalHeight = _compactEditorPopup
-            ? Math.Min(460d, Math.Max(280d, height - 56d))
-            : Math.Max(280d, height - 56d);
-        var bodyHeight = _compactEditorPopup
-            ? Math.Clamp(height - 470d, 130d, 190d)
-            : Math.Clamp(height - 470d, 140d, 300d);
+        // The schematic preview needs the entire phone canvas visible at once. Give it
+        // a near-full-height card and a larger natural body viewport; ordinary dialogs
+        // keep their existing compact sizing and scrolling behavior.
+        var modalHeight = _layoutPreviewActive
+            ? Math.Max(360d, height - 24d)
+            : _compactEditorPopup
+                ? Math.Min(460d, Math.Max(280d, height - 56d))
+                : Math.Max(280d, height - 56d);
+        var bodyHeight = _layoutPreviewActive
+            ? Math.Clamp(height - 245d, 280d, 560d)
+            : _compactEditorPopup
+                ? Math.Clamp(height - 470d, 130d, 190d)
+                : Math.Clamp(height - 470d, 140d, 300d);
         if (Math.Abs(ModalCard.MaximumHeightRequest - modalHeight) > 1d)
             ModalCard.MaximumHeightRequest = modalHeight;
         if (Math.Abs(ModalBodyScroll.MaximumHeightRequest - bodyHeight) > 1d)
@@ -2538,6 +2546,7 @@ public partial class MainPage : ContentPage
                 "Layout preview",
                 "Schematic only. CLOCK marks the expected clock area; the sample task cards are not added to the final wallpaper.",
                 "▧");
+            ModalBodyScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Never;
             ModalSectionLabel.Text = LocalizedDisplayText("LOCKSY · TASKS LAYOUT");
 
             var caption = new Label
@@ -2590,8 +2599,9 @@ public partial class MainPage : ContentPage
 
             var offsetPx = Math.Clamp(verticalOffset, -0.20f, 0.20f) * canvasHeight;
             var totalGroupHeight = sampleTaskCount * taskHeight + (sampleTaskCount - 1) * taskGap;
-            var clockWidth = 60d;
-            var clockHeight = 23d;
+            // Make the clock target easier to recognize in the schematic preview.
+            var clockWidth = 72d;
+            var clockHeight = 28d;
             double clockY;
             var taskPositions = new List<double>(sampleTaskCount);
 
@@ -2654,11 +2664,11 @@ public partial class MainPage : ContentPage
                 BackgroundColor = Color.FromArgb("#88765DDF"),
                 Stroke = new SolidColorBrush(Color.FromArgb("#B8A7FF")),
                 StrokeThickness = 1,
-                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(7) },
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
                 Content = new Label
                 {
                     Text = "CLOCK",
-                    FontSize = 8,
+                    FontSize = 10,
                     FontAttributes = FontAttributes.Bold,
                     TextColor = Colors.White,
                     HorizontalTextAlignment = TextAlignment.Center,
@@ -2727,6 +2737,7 @@ public partial class MainPage : ContentPage
         finally
         {
             _layoutPreviewActive = false;
+            ModalBodyScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Default;
         }
     }
 
@@ -2998,8 +3009,12 @@ public partial class MainPage : ContentPage
         _compactEditorPopup = false;
         ModalCard.WidthRequest = -1;
         ModalCard.MaximumWidthRequest = 380;
-        ModalCard.MaximumHeightRequest = Math.Max(280d, Height - 56d);
-        ModalBodyScroll.MaximumHeightRequest = Math.Clamp(Height - 470d, 140d, 300d);
+        ModalCard.MaximumHeightRequest = _layoutPreviewActive
+            ? Math.Max(360d, Height - 24d)
+            : Math.Max(280d, Height - 56d);
+        ModalBodyScroll.MaximumHeightRequest = _layoutPreviewActive
+            ? Math.Clamp(Height - 245d, 280d, 560d)
+            : Math.Clamp(Height - 470d, 140d, 300d);
         ModalCard.MinimumHeightRequest = -1;
         ModalBodyScroll.Opacity = reuseVisibleModal ? 0 : 1;
         ModalButtons.Opacity = reuseVisibleModal ? 0 : 1;
