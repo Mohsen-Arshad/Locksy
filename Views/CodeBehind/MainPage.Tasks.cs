@@ -305,20 +305,43 @@ public partial class MainPage : ContentPage
             TextColor = PopupColor("#303545", "#F1F2FA"),
             VerticalTextAlignment = TextAlignment.Center
         };
-        var alarmSwitch = new Switch
+        var reminderAlarmEnabled = alarmEnabled;
+        var isDarkTheme = _viewModel.Settings?.IsDarkMode ?? false;
+        var alarmToggleThumb = new Ellipse
         {
-            IsToggled = alarmEnabled,
-            OnColor = Color.FromArgb("#8875E8"),
-            ThumbColor = Colors.White,
+            WidthRequest = 19,
+            HeightRequest = 19,
+            Fill = Color.FromArgb(reminderAlarmEnabled ? "#F8F6FF" : isDarkTheme ? "#777F95" : "#7F899F"),
+            HorizontalOptions = reminderAlarmEnabled ? LayoutOptions.End : LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Center
         };
+        var alarmToggleContent = new Grid();
+        alarmToggleContent.Add(alarmToggleThumb);
+        var alarmToggleTrack = new Border
+        {
+            WidthRequest = 46,
+            HeightRequest = 27,
+            Padding = 3,
+            BackgroundColor = Color.FromArgb(reminderAlarmEnabled
+                ? "#8875E8"
+                : isDarkTheme ? "#14151F" : "#C8D1E0"),
+            Stroke = new SolidColorBrush(Color.FromArgb(reminderAlarmEnabled
+                ? (isDarkTheme ? "#A99BFF" : "#8875E8")
+                : isDarkTheme ? "#3B3E52" : "#B7C2D4")),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16) },
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.Center,
+            Content = alarmToggleContent
+        };
+        SemanticProperties.SetDescription(alarmToggleTrack, LocalizationService.Translate("Reminder alarm"));
         var alarmRow = new Grid
         {
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
             Margin = new Thickness(0, 7, 0, 0)
         };
         alarmRow.Add(alarmTitle, 0, 0);
-        alarmRow.Add(alarmSwitch, 1, 0);
+        alarmRow.Add(alarmToggleTrack, 1, 0);
         ModalBody.Children.Add(alarmRow);
 
         var defaultReminder = initialReminder;
@@ -356,18 +379,38 @@ public partial class MainPage : ContentPage
         });
         ModalBody.Children.Add(dateTimeGrid);
 
+        void UpdateAlarmToggleVisual()
+        {
+            alarmToggleTrack.BackgroundColor = Color.FromArgb(reminderAlarmEnabled
+                ? "#8875E8"
+                : isDarkTheme ? "#14151F" : "#C8D1E0");
+            alarmToggleTrack.Stroke = new SolidColorBrush(Color.FromArgb(reminderAlarmEnabled
+                ? (isDarkTheme ? "#A99BFF" : "#8875E8")
+                : isDarkTheme ? "#3B3E52" : "#B7C2D4"));
+            alarmToggleThumb.Fill = Color.FromArgb(reminderAlarmEnabled
+                ? "#F8F6FF"
+                : isDarkTheme ? "#777F95" : "#7F899F");
+            alarmToggleThumb.HorizontalOptions = reminderAlarmEnabled ? LayoutOptions.End : LayoutOptions.Start;
+        }
         void UpdateAlarmControls()
         {
-            datePicker.IsEnabled = alarmSwitch.IsToggled;
-            timePicker.IsEnabled = alarmSwitch.IsToggled;
-            dateTimeGrid.Opacity = alarmSwitch.IsToggled ? 1 : 0.42;
+            datePicker.IsEnabled = reminderAlarmEnabled;
+            timePicker.IsEnabled = reminderAlarmEnabled;
+            dateTimeGrid.Opacity = reminderAlarmEnabled ? 1 : 0.42;
+            UpdateAlarmToggleVisual();
         }
-        alarmSwitch.Toggled += (_, _) => UpdateAlarmControls();
+        var alarmToggleTap = new TapGestureRecognizer();
+        alarmToggleTap.Tapped += (_, _) =>
+        {
+            reminderAlarmEnabled = !reminderAlarmEnabled;
+            UpdateAlarmControls();
+        };
+        alarmToggleTrack.GestureRecognizers.Add(alarmToggleTap);
         UpdateAlarmControls();
 
         bool ValidateDraft(bool adding)
         {
-            if (alarmSwitch.IsToggled && (datePicker.Date.Date + timePicker.Time) <= DateTime.Now)
+            if (reminderAlarmEnabled && (datePicker.Date.Date + timePicker.Time) <= DateTime.Now)
             {
                 SetModalMessageText("Choose a future date and time for the alarm.");
                 ModalMessage.IsVisible = true;
@@ -405,8 +448,8 @@ public partial class MainPage : ContentPage
         _viewModel.NewTaskSettings.Save(
             selectedColorKey,
             selectedPaletteKey,
-            alarmSwitch.IsToggled,
-            alarmSwitch.IsToggled
+            reminderAlarmEnabled,
+            reminderAlarmEnabled
                 ? DateTime.SpecifyKind(datePicker.Date.Date + timePicker.Time, DateTimeKind.Local)
                 : null);
 
