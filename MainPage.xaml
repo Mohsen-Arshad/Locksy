@@ -47,7 +47,7 @@
                          BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
                          BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
                          BorderWidth="1"
-                         CornerRadius="12.8"
+                         CornerRadius="13"
                          SemanticProperties.Description="Open application settings"
                          AutomationProperties.Name="Application settings">
                 <ImageButton.Shadow>
@@ -118,16 +118,13 @@
                         ItemsUpdatingScrollMode="KeepScrollOffset">
             <CollectionView.EmptyView>
                 <VerticalStackLayout Padding="16,34" Spacing="10" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Border WidthRequest="84" HeightRequest="84" Padding="0" HorizontalOptions="Center"
-                            BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
-                            Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
-                            StrokeThickness="1" StrokeShape="RoundRectangle 26">
-                        <Border.Shadow>
-                            <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="3,4" Radius="10" Opacity="0.38" />
-                        </Border.Shadow>
-                        <Label Text="✓" FontSize="46" FontAttributes="Bold" HorizontalTextAlignment="Center"
-                               VerticalTextAlignment="Center" TextColor="#8A78E8" />
-                    </Border>
+                    <Image Source="empty_list_add_icon.png"
+                           WidthRequest="46"
+                           HeightRequest="46"
+                           Aspect="AspectFit"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"
+                           SemanticProperties.Description="Empty task list illustration" />
                     <Label x:Name="EmptyListTitleLabel" Text="Your list is clear"
                            FontSize="20"
                            FontAttributes="Bold"
