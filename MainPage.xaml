@@ -448,7 +448,7 @@
                     StrokeShape="RoundRectangle 26"
                     HorizontalOptions="Center"
                     VerticalOptions="Center">
-                <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
                     <Grid Grid.Row="0" ColumnDefinitions="44,*" ColumnSpacing="12">
                         <Border WidthRequest="44"
                                 HeightRequest="44"
@@ -500,6 +500,7 @@
                     <ScrollView x:Name="ModalBodyScroll"
                                 Grid.Row="2"
                                 MaximumHeightRequest="300"
+                                VerticalOptions="Start"
                                 VerticalScrollBarVisibility="Default"
                                 HorizontalScrollBarVisibility="Never">
                         <VerticalStackLayout x:Name="ModalBody" Spacing="8" />
