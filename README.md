@@ -21,8 +21,6 @@ The project uses MVVM with SOLID-oriented dependency boundaries. `TodoItem` is p
 
 Custom UI handlers remain in `Views/CodeBehind` by responsibility. These handlers are for modal rendering, visual transitions, dynamic control construction, and Android gesture integration; persistence and the main wallpaper/settings workflows belong in ViewModels and services.
 
-See [`docs/architecture/ARCHITECTURE-v1.3.0-FA.md`](docs/architecture/ARCHITECTURE-v1.3.0-FA.md), [`RELEASE-NOTES-v1.3.0.md`](RELEASE-NOTES-v1.3.0.md), and [`INSTALL-v1.3.0-FA.md`](INSTALL-v1.3.0-FA.md).
-
 ## Build and run
 
 Requirements: Visual Studio with the .NET MAUI workload and Android SDK.
