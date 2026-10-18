@@ -207,6 +207,7 @@ public sealed class MainViewModel : ObservableObject, ITaskListSource
             e.PropertyName != nameof(TaskItemViewModel.IsCompleted) &&
             e.PropertyName != nameof(TaskItemViewModel.ColorKey) &&
             e.PropertyName != nameof(TaskItemViewModel.ColorPaletteKey) &&
+            e.PropertyName != nameof(TaskItemViewModel.TextDirection) &&
             e.PropertyName != nameof(TaskItemViewModel.IsReminderEnabled) &&
             e.PropertyName != nameof(TaskItemViewModel.ReminderAt))
             return;

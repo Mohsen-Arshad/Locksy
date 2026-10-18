@@ -33,7 +33,7 @@ public static class LocalizationService
         ["LIGHT"] = "روشن",
         ["Add a task..."] = "افزودن یک کار...",
         ["＋ Add"] = "＋ افزودن",
-        ["Your list is clear"] = "فهرست خالی است",
+        ["Your list is clear"] = "فهرستت خالی است",
         ["Add your first task. It will be saved on this device."] = "اولین کارت را اضافه کن؛ اطلاعات روی همین دستگاه ذخیره می‌شود.",
         ["Tasks layout"] = "چیدمان کارها",
         ["Tasks below top clock"] = "کارها زیر ساعت بالای صفحه",
@@ -48,6 +48,13 @@ public static class LocalizationService
         ["Clear completed"] = "پاک‌کردن کارهای انجام‌شده",
         ["Apply wallpaper"] = "اعمال پس‌زمینه",
         ["Applying…"] = "در حال اعمال…",
+        ["Text direction"] = "جهت نوشتار",
+        ["Task text direction"] = "جهت نوشتار تسک",
+        ["Automatic"] = "خودکار",
+        ["Left to right"] = "چپ به راست",
+        ["Right to left"] = "راست به چپ",
+        ["Current setting:"] = "تنظیم فعلی:",
+        ["Choose how this task's text should be arranged. Automatic follows the first letter's writing direction."] = "جهت نمایش متن این تسک را انتخاب کن. حالت خودکار بر اساس اولین حرف تعیین می‌شود.",
         ["Ready · Drag ⠿ to reorder"] = "آماده · برای مرتب‌سازی، ⠿ را بکش",
         ["First 8 tasks on wallpaper"] = "۸ کار اول روی پس‌زمینه نمایش داده می‌شوند",
         ["Moving task"] = "در حال جابه‌جایی کار",
@@ -282,7 +289,7 @@ public static class LocalizationService
         // If an installed build was using Persian, queue one wallpaper regeneration so
         // the old generated lock-screen bitmap can pick up the corrected English default.
         if (string.Equals(previousLanguage, "fa", StringComparison.OrdinalIgnoreCase)
-            && MauiPreferences.Default.Get("locksy-auto-apply", true))
+            && MauiPreferences.Default.Get("locksy-auto-apply", false))
         {
             MauiPreferences.Default.Set("locksy-auto-apply-pending", true);
         }

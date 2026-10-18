@@ -1,4 +1,5 @@
 using System.Globalization;
+using Locksy.Helpers;
 using Locksy.Models;
 using Locksy.Platforms.Android;
 using Locksy.Services;
@@ -15,6 +16,28 @@ namespace Locksy;
 
 public partial class MainPage : ContentPage
 {
+    private void NewTaskEntry_TextChanged(object? sender, TextChangedEventArgs e) =>
+        UpdateNewTaskEntryFlowDirection(e.NewTextValue);
+
+    private void UpdateNewTaskEntryFlowDirection(string? text)
+    {
+        var direction = TaskTextDirectionHelper.Resolve(
+            text, TaskTextDirection.Auto, LocalizationService.IsPersian);
+        NewTaskEntry.FlowDirection = direction == TaskTextDirection.RightToLeft
+            ? Microsoft.Maui.Controls.FlowDirection.RightToLeft
+            : Microsoft.Maui.Controls.FlowDirection.LeftToRight;
+    }
+
+    private static Microsoft.Maui.Controls.FlowDirection ResolveTaskFlowDirection(
+        string? text, TaskTextDirection requestedDirection)
+    {
+        var direction = TaskTextDirectionHelper.Resolve(
+            text, requestedDirection, LocalizationService.IsPersian);
+        return direction == TaskTextDirection.RightToLeft
+            ? Microsoft.Maui.Controls.FlowDirection.RightToLeft
+            : Microsoft.Maui.Controls.FlowDirection.LeftToRight;
+    }
+
     private async void AddTaskEntry_Completed(object? sender, EventArgs e)
     {
         await AddTaskAndKeepInputReadyAsync();
@@ -125,6 +148,7 @@ public partial class MainPage : ContentPage
         var draftTitleEntry = new Entry
         {
             Text = initialTitle,
+            FlowDirection = ResolveTaskFlowDirection(initialTitle, TaskTextDirection.Auto),
             Placeholder = LocalizationService.Translate("What do you need to remember?"),
             MaxLength = 300,
             ReturnType = ReturnType.Done,
@@ -134,6 +158,8 @@ public partial class MainPage : ContentPage
             TextColor = PopupColor("#303545", "#F1F2FA"),
             PlaceholderColor = PopupColor("#8C8798", "#9690A8")
         };
+        draftTitleEntry.TextChanged += (_, args) =>
+            draftTitleEntry.FlowDirection = ResolveTaskFlowDirection(args.NewTextValue, TaskTextDirection.Auto);
         ModalBody.Children.Add(new Border
         {
             Padding = new Thickness(10, 4),
@@ -578,9 +604,9 @@ public partial class MainPage : ContentPage
                 var action = await ShowChoicePopupAsync(
                     "Task options",
                     "Choose what to do with a task.",
-                    new[] { "Edit task", "Change row color", "Set / edit alarm", "Delete task" },
+                    new[] { "Edit task", "Text direction", "Change row color", "Set / edit alarm", "Delete task" },
                     cancelLabel: "Close",
-                    icons: new[] { "edit", "palette", "alarm", "trash" },
+                    icons: new[] { "edit", "↔", "palette", "alarm", "trash" },
                     popupIcon: "options",
                     keepOpenOnSelection: true);
 
@@ -592,6 +618,10 @@ public partial class MainPage : ContentPage
                 {
                     case "Edit task":
                         await EditTaskAsync(task, keepModalOpenOnCompletion: true);
+                        break;
+
+                    case "Text direction":
+                        await ChooseTaskTextDirectionAsync(task, keepModalOpenOnSelection: true);
                         break;
 
                     case "Change row color":
@@ -640,7 +670,8 @@ public partial class MainPage : ContentPage
             placeholder: LocalizationService.Translate("Task text"),
             maxLength: 300,
             initialValue: task.Title,
-            keepModalOpenOnCompletion: keepModalOpenOnCompletion);
+            keepModalOpenOnCompletion: keepModalOpenOnCompletion,
+            textDirection: task.TextDirection);
 
         if (value is not null)
             _viewModel.EditTask(task, value);
@@ -804,6 +835,36 @@ public partial class MainPage : ContentPage
         Shadow = CreateNeumorphicShadow(0.20f),
         Content = picker
     };
+    private async Task ChooseTaskTextDirectionAsync(TaskItemViewModel task, bool keepModalOpenOnSelection = false)
+    {
+        var currentSetting = task.TextDirection switch
+        {
+            TaskTextDirection.LeftToRight => "Left to right",
+            TaskTextDirection.RightToLeft => "Right to left",
+            _ => "Automatic"
+        };
+        var currentSettingLabel = LocalizationService.Translate("Current setting:");
+        var currentSettingText = LocalizationService.Translate(currentSetting);
+        var instruction = LocalizationService.Translate(
+            "Choose how this task's text should be arranged. Automatic follows the first letter's writing direction.");
+        var message = $"{currentSettingLabel} {currentSettingText}\n{instruction}";
+        var choice = await ShowChoicePopupAsync(
+            "Task text direction",
+            message,
+            new[] { "Automatic", "Left to right", "Right to left" },
+            cancelLabel: "Back to task options",
+            icons: new[] { "A", "LTR", "RTL" },
+            keepOpenOnSelection: keepModalOpenOnSelection);
+
+        if (choice is null) return;
+        task.TextDirection = choice switch
+        {
+            "Left to right" => TaskTextDirection.LeftToRight,
+            "Right to left" => TaskTextDirection.RightToLeft,
+            _ => TaskTextDirection.Auto
+        };
+    }
+
     private async Task ChooseTaskColorAsync(TaskItemViewModel task, bool keepModalOpenOnSelection = false)
     {
         var selection = await ShowTaskPalettePopupAsync(task, keepModalOpenOnSelection);

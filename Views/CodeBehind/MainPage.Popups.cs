@@ -1,4 +1,5 @@
 using System.Globalization;
+using Locksy.Helpers;
 using Locksy.Models;
 using Locksy.Platforms.Android;
 using Locksy.Services;
@@ -218,7 +219,8 @@ public partial class MainPage : ContentPage
         string placeholder,
         int maxLength,
         string? initialValue = null,
-        bool keepModalOpenOnCompletion = false)
+        bool keepModalOpenOnCompletion = false,
+        TaskTextDirection textDirection = TaskTextDirection.Auto)
     {
         var completion = BeginPopup(title, message, "✎");
         // Keep task editing more compact than the generic dialogs, but provide a real
@@ -229,6 +231,7 @@ public partial class MainPage : ContentPage
         var input = new Editor
         {
             Text = initialValue ?? string.Empty,
+            FlowDirection = ResolveTaskFlowDirection(initialValue, textDirection),
             Placeholder = placeholder,
             MaxLength = maxLength,
             AutoSize = EditorAutoSizeOption.Disabled,
@@ -261,6 +264,8 @@ public partial class MainPage : ContentPage
         });
         input.TextChanged += (_, args) =>
         {
+            if (textDirection == TaskTextDirection.Auto)
+                input.FlowDirection = ResolveTaskFlowDirection(args.NewTextValue, TaskTextDirection.Auto);
             if (ModalBody.Children.Count > 1 && ModalBody.Children[1] is Label counter)
                 counter.Text = LocalizationService.FormatCharacterCounter((args.NewTextValue ?? string.Empty).Length, maxLength);
         };

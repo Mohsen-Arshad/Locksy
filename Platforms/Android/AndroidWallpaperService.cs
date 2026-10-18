@@ -9,6 +9,7 @@ using AndroidTextLayout = Android.Text.Layout;
 using AndroidPaint = Android.Graphics.Paint;
 using Android.OS;
 using AndroidX.Core.Content;
+using Locksy.Helpers;
 using Locksy.Models;
 using Locksy.Services;
 using Locksy.Services.Abstractions;
@@ -390,12 +391,16 @@ public sealed class AndroidWallpaperService : IWallpaperService
         AndroidTextPaint paint,
         int width,
         float lineSpacingMultiplier,
-        bool justify)
+        bool justify,
+        TaskTextDirection? textDirection = null)
     {
         var safeText = text ?? string.Empty;
+        var effectiveDirection = textDirection ?? (LocalizationService.IsPersian
+            ? TaskTextDirection.RightToLeft
+            : TaskTextDirection.LeftToRight);
         var builder = AndroidStaticLayout.Builder.Obtain(safeText, 0, safeText.Length, paint, Math.Max(1, width))
             .SetAlignment(AndroidTextLayout.Alignment.AlignNormal!)
-            .SetTextDirection(LocalizationService.IsPersian
+            .SetTextDirection(effectiveDirection == TaskTextDirection.RightToLeft
                 ? AndroidTextDirectionHeuristics.Rtl!
                 : AndroidTextDirectionHeuristics.Ltr!)
             .SetIncludePad(false)
@@ -617,9 +622,15 @@ public sealed class AndroidWallpaperService : IWallpaperService
                 // Use the same display-only RTL/LTR embedding helper as the MAUI task labels.
                 // Do not render the raw stored title: classic RLE/LRE marks keep Latin runs
                 // (such as Locksy or a URL) in natural character order on the Android lock screen.
-                var displayTitle = LocalizationService.PrepareTextForDisplay(task.Title ?? string.Empty);
+                var effectiveDirection = TaskTextDirectionHelper.Resolve(
+                    task.Title, task.TextDirection, LocalizationService.IsPersian);
+                var displayTitle = TaskTextDirectionHelper.PrepareForDisplay(
+                    task.Title, task.TextDirection, LocalizationService.IsPersian);
+                // Only task text direction changes here. Number badges, color dots, card
+                // geometry, and their locale-based placement remain unchanged.
                 layout = CreateTextLayout(displayTitle, textPaint,
-                    Math.Max(1, (int)Math.Ceiling(maxTextWidth)), 1.22f, justify: true);
+                    Math.Max(1, (int)Math.Ceiling(maxTextWidth)), 1.22f, justify: true,
+                    textDirection: effectiveDirection);
                 var cardHeight = Math.Max(baseCardHeight, layout.Height + fontSize * 0.82f);
                 rows.Add(new PreparedRow(task, textPaint, layout, cardHeight));
             }

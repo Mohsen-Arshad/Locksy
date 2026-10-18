@@ -150,7 +150,7 @@ public sealed class WallpaperViewModel : ObservableObject, IDisposable, IWallpap
         _selectedLayoutIndex = Math.Clamp(savedLayout, 0, (int)WallpaperLayout.TasksBottom);
         _verticalOffset = Math.Clamp(_preferences.GetSingle(VerticalOffsetPreferenceKey, 0f), -0.20f, 0.20f);
         _clockClearance = Math.Clamp(_preferences.GetSingle(ClockClearancePreferenceKey, 0.18f), 0.08f, 0.30f);
-        _isAutoApplyEnabled = _preferences.GetBoolean(AutoApplyPreferenceKey, true);
+        _isAutoApplyEnabled = _preferences.GetBoolean(AutoApplyPreferenceKey, false);
         _isAutoApplyPending = _isAutoApplyEnabled && _preferences.GetBoolean(AutoApplyPendingPreferenceKey, false);
         _statusMessage = _isAutoApplyPending ? _localizationService.Translate(AutoApplyQueuedStatus) :
             _localizationService.Translate("Ready · Drag ⠿ to reorder");
@@ -168,6 +168,7 @@ public sealed class WallpaperViewModel : ObservableObject, IDisposable, IWallpap
 
     public void RefreshLocalizedState()
     {
+        OnPropertyChanged(nameof(ApplyButtonText));
         RefreshLayoutSummary();
         if (IsAutoApplyPending)
             StatusMessage = _localizationService.Translate(AutoApplyQueuedStatus);

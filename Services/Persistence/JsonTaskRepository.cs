@@ -67,7 +67,7 @@ public sealed class JsonTaskRepository : ITaskRepository
             // belong to the UI thread. The immutable snapshot can safely be serialized later.
             var snapshot = tasks.Select(task => new PersistedTask(
                 task.Id, task.Title, task.IsCompleted, task.ColorKey, task.ColorPaletteKey,
-                task.IsReminderEnabled, task.ReminderAt)).ToArray();
+                task.IsReminderEnabled, task.ReminderAt, task.TextDirection)).ToArray();
             var version = Interlocked.Increment(ref _requestedSaveVersion);
             _ = Task.Run(() => PersistLatestAsync(snapshot, version));
         }
@@ -128,5 +128,5 @@ public sealed class JsonTaskRepository : ITaskRepository
     // Property names intentionally match TodoItem so existing JSON files remain compatible.
     private sealed record PersistedTask(
         Guid Id, string Title, bool IsCompleted, string ColorKey, string ColorPaletteKey,
-        bool IsReminderEnabled, DateTime? ReminderAt);
+        bool IsReminderEnabled, DateTime? ReminderAt, TaskTextDirection TextDirection);
 }

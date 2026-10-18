@@ -9,10 +9,10 @@ public static class ThemeService
 
     public static ThemePreference GetSavedPreference()
     {
-        var value = MauiPreferences.Default.Get(PreferenceKey, nameof(ThemePreference.System));
+        var value = MauiPreferences.Default.Get(PreferenceKey, nameof(ThemePreference.Dark));
         return Enum.TryParse<ThemePreference>(value, ignoreCase: true, out var preference)
             ? preference
-            : ThemePreference.System;
+            : ThemePreference.Dark;
     }
 
     public static void SetPreference(ThemePreference preference)
