@@ -10,6 +10,7 @@ public sealed class TodoItem
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Title { get; set; } = string.Empty;
+    public TaskTextDirection TextDirection { get; set; } = TaskTextDirection.Auto;
     public bool IsCompleted { get; set; }
     public string ColorKey { get; set; } = "none";
     public string ColorPaletteKey { get; set; } = "vibrant";

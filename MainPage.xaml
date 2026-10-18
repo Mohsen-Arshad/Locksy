@@ -74,6 +74,7 @@
                        Placeholder="Add a task..."
                        ReturnType="Done"
                        Completed="AddTaskEntry_Completed"
+                       TextChanged="NewTaskEntry_TextChanged"
                        Unfocused="NewTaskEntry_Unfocused"
                        ClearButtonVisibility="WhileEditing"
                        BackgroundColor="Transparent"
@@ -180,6 +181,7 @@
                                      SemanticProperties.Description="Selected reminder color" />
                             <Label Grid.Column="2" Grid.RowSpan="2"
                                    Text="{Binding DisplayTitle}"
+                                   FlowDirection="{Binding TitleFlowDirection}"
                                    TextDecorations="{Binding TitleDecorations}"
                                    FontSize="15"
                                    TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"

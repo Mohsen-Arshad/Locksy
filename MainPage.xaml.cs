@@ -153,7 +153,7 @@ public partial class MainPage : ContentPage
         _viewModel.RefreshLocalizedTaskTitles();
 
         HeaderTaglineLabel.FlowDirection = FlowDirection;
-        NewTaskEntry.FlowDirection = FlowDirection;
+        UpdateNewTaskEntryFlowDirection(NewTaskEntry.Text);
         HeaderTaglineLabel.Text = LocalizedDisplayText("Keep what matters in sight.");
         NewTaskEntry.Placeholder = LocalizedDisplayText("Add a task...");
         AddTaskButton.Text = LocalizedDisplayText("＋ Add");

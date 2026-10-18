@@ -275,10 +275,15 @@ public partial class MainPage : ContentPage
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(thumbSize / 2) },
             Shadow = new Shadow
             {
-                Brush = new SolidColorBrush(Color.FromArgb("#6551C7")),
-                Offset = new Point(0, 3),
-                Radius = 6,
-                Opacity = 0.42f
+                Brush = new SolidColorBrush(
+                    isDark
+                        ? Colors.Transparent
+                        : Color.FromArgb("#6551C7")),
+                Offset = isDark
+                    ? Point.Zero
+                    : new Point(0, 3),
+                Radius = isDark ? 0 : 6,
+                Opacity = isDark ? 0f : 0.42f
             },
             HorizontalOptions = LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Center,

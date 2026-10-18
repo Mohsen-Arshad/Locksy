@@ -1,3 +1,4 @@
+using Locksy.Helpers;
 using Locksy.Models;
 using Locksy.Services;
 using Locksy.Services.Abstractions;
@@ -27,10 +28,30 @@ public sealed class TaskItemViewModel : ObservableObject
             Model.Title = normalized;
             OnPropertyChanged();
             OnPropertyChanged(nameof(DisplayTitle));
+            OnPropertyChanged(nameof(TitleFlowDirection));
         }
     }
 
-    public string DisplayTitle => _localizationService.PrepareTextForDisplay(Title);
+    public string DisplayTitle => _localizationService.PrepareTaskTextForDisplay(Title, TextDirection);
+
+    public TaskTextDirection TextDirection
+    {
+        get => Enum.IsDefined(Model.TextDirection) ? Model.TextDirection : TaskTextDirection.Auto;
+        set
+        {
+            var normalized = Enum.IsDefined(value) ? value : TaskTextDirection.Auto;
+            if (Model.TextDirection == normalized) return;
+            Model.TextDirection = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayTitle));
+            OnPropertyChanged(nameof(TitleFlowDirection));
+        }
+    }
+
+    public FlowDirection TitleFlowDirection =>
+        TaskTextDirectionHelper.Resolve(Title, TextDirection, _localizationService.IsPersian) == TaskTextDirection.RightToLeft
+            ? FlowDirection.RightToLeft
+            : FlowDirection.LeftToRight;
 
     public bool IsCompleted
     {
@@ -117,9 +138,14 @@ public sealed class TaskItemViewModel : ObservableObject
         if (!TodoPalette.IsValidPaletteKey(Model.ColorPaletteKey))
             Model.ColorPaletteKey = TodoPalette.VibrantPaletteKey;
         Model.Title ??= string.Empty;
+        if (!Enum.IsDefined(Model.TextDirection)) Model.TextDirection = TaskTextDirection.Auto;
     }
 
-    public void RefreshLocalizedTitle() => OnPropertyChanged(nameof(DisplayTitle));
+    public void RefreshLocalizedTitle()
+    {
+        OnPropertyChanged(nameof(DisplayTitle));
+        OnPropertyChanged(nameof(TitleFlowDirection));
+    }
 
     public void RefreshAppearance()
     {
