@@ -1,4 +1,6 @@
 using Microsoft.Maui.Storage;
+using MauiPreferences = Microsoft.Maui.Storage.Preferences;
+
 
 namespace Locksy.Services;
 
@@ -11,7 +13,7 @@ public static class CustomWallpaperBackgroundService
 
     public static string? GetExistingPath()
     {
-        var path = Preferences.Default.Get(PreferenceKey, string.Empty);
+        var path = MauiPreferences.Default.Get(PreferenceKey, string.Empty);
         return !string.IsNullOrWhiteSpace(path) && File.Exists(path) ? path : null;
     }
 
@@ -48,13 +50,13 @@ public static class CustomWallpaperBackgroundService
         }
 
         File.Move(temporary, destination, overwrite: true);
-        Preferences.Default.Set(PreferenceKey, destination);
+        MauiPreferences.Default.Set(PreferenceKey, destination);
     }
 
     public static void Clear()
     {
-        var existing = Preferences.Default.Get(PreferenceKey, string.Empty);
-        Preferences.Default.Remove(PreferenceKey);
+        var existing = MauiPreferences.Default.Get(PreferenceKey, string.Empty);
+        MauiPreferences.Default.Remove(PreferenceKey);
         if (!string.IsNullOrWhiteSpace(existing)) TryDelete(existing);
         TryDelete(StoredImagePath);
         TryDelete(StoredImagePath + ".tmp");

@@ -3,6 +3,7 @@ using Android.Content;
 using Android.OS;
 using Locksy.Models;
 using System.Text.Json;
+using System.Runtime.Versioning;
 
 namespace Locksy.Platforms.Android;
 
@@ -63,18 +64,26 @@ internal static class ReminderScheduler
 
     public static bool CanUseExactAlarms()
     {
-        if (Build.VERSION.SdkInt < BuildVersionCodes.S) return true;
-        try
+        if (OperatingSystem.IsAndroidVersionAtLeast(31))
         {
-            var context = global::Android.App.Application.Context;
-            var manager = context.GetSystemService(Context.AlarmService) as AlarmManager;
-            return manager?.CanScheduleExactAlarms() ?? false;
+            try
+            {
+                var context = global::Android.App.Application.Context;
+                var manager = context.GetSystemService(Context.AlarmService) as AlarmManager;
+                return manager is not null && CanScheduleExactAlarmsOnAndroidS(manager);
+            }
+            catch
+            {
+                return false;
+            }
         }
-        catch
-        {
-            return false;
-        }
+
+        return true;
     }
+
+    [SupportedOSPlatform("android31.0")]
+    private static bool CanScheduleExactAlarmsOnAndroidS(AlarmManager manager) =>
+        manager.CanScheduleExactAlarms();
 
     internal static void RescheduleFromStorage(Context context)
     {
@@ -109,30 +118,16 @@ internal static class ReminderScheduler
             var manager = context.GetSystemService(Context.NotificationService) as NotificationManager;
             if (manager is null) return;
 
-            if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
+            var title = string.IsNullOrWhiteSpace(taskTitle) ? "Task reminder" : taskTitle;
+            var notificationId = GetNotificationId(taskIdText);
+
+            if (OperatingSystem.IsAndroidVersionAtLeast(26))
             {
-                var channel = new NotificationChannel(
-                    NotificationChannelId,
-                    "Task reminders",
-                    NotificationImportance.High)
-                {
-                    Description = "Alerts scheduled for Locksy tasks"
-                };
-                manager.CreateNotificationChannel(channel);
+                ShowModernNotification(context, manager, notificationId, title);
+                return;
             }
 
-            var title = string.IsNullOrWhiteSpace(taskTitle) ? "Task reminder" : taskTitle;
-            var builder = Build.VERSION.SdkInt >= BuildVersionCodes.O
-                ? new Notification.Builder(context, NotificationChannelId)
-                : new Notification.Builder(context);
-
-            builder.SetSmallIcon(global::Locksy.Resource.Drawable.locksy_icon_foreground);
-            builder.SetContentTitle("Locksy reminder");
-            builder.SetContentText(title);
-            builder.SetAutoCancel(true);
-            builder.SetCategory(Notification.CategoryAlarm);
-            builder.SetPriority((int)NotificationPriority.High);
-            manager.Notify(GetNotificationId(taskIdText), builder.Build());
+            ShowLegacyNotification(context, manager, notificationId, title);
         }
         catch (Java.Lang.SecurityException)
         {
@@ -142,6 +137,49 @@ internal static class ReminderScheduler
         {
             // Notification delivery is isolated from alarm receiver lifecycle.
         }
+    }
+
+    [SupportedOSPlatform("android26.0")]
+    private static void ShowModernNotification(
+        Context context,
+        NotificationManager manager,
+        int notificationId,
+        string title)
+    {
+        var channel = new NotificationChannel(
+            NotificationChannelId,
+            "Task reminders",
+            NotificationImportance.High)
+        {
+            Description = "Alerts scheduled for Locksy tasks"
+        };
+        manager.CreateNotificationChannel(channel);
+
+        // Channel importance replaces the legacy per-notification priority setting.
+        var builder = new Notification.Builder(context, NotificationChannelId);
+        builder.SetSmallIcon(global::Locksy.Resource.Drawable.locksy_icon_foreground);
+        builder.SetContentTitle("Locksy reminder");
+        builder.SetContentText(title);
+        builder.SetAutoCancel(true);
+        builder.SetCategory(Notification.CategoryAlarm);
+        manager.Notify(notificationId, builder.Build());
+    }
+
+    [UnsupportedOSPlatform("android26.0")]
+    private static void ShowLegacyNotification(
+        Context context,
+        NotificationManager manager,
+        int notificationId,
+        string title)
+    {
+        var builder = new Notification.Builder(context);
+        builder.SetSmallIcon(global::Locksy.Resource.Drawable.locksy_icon_foreground);
+        builder.SetContentTitle("Locksy reminder");
+        builder.SetContentText(title);
+        builder.SetAutoCancel(true);
+        builder.SetCategory(Notification.CategoryAlarm);
+        builder.SetPriority((int)NotificationPriority.High);
+        manager.Notify(notificationId, builder.Build());
     }
 
     private static void ScheduleAlarm(AlarmManager manager, Context context, TodoItem task)

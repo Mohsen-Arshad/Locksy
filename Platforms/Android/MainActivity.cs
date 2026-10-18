@@ -134,20 +134,49 @@ public class MainActivity : MauiAppCompatActivity
 
         var isDark = ThemeService.IsDarkMode();
         var navigationColor = AndroidColor.ParseColor(isDark ? "#20212D" : "#E6E9F1");
-        window.SetNavigationBarColor(navigationColor);
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.P)
-            window.NavigationBarDividerColor = navigationColor;
 
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.O && window.DecorView is { } decor)
+        // Android 15 (API 35) enforces edge-to-edge and deprecates the legacy
+        // navigation-bar color/divider APIs. Use OS version helpers so the
+        // platform analyzer can prove each API is called only where supported.
+        if (!OperatingSystem.IsAndroidVersionAtLeast(35))
         {
-            // Dark icons on the light surface; light icons on the dark surface.
+            window.SetNavigationBarColor(navigationColor);
+
+            // NavigationBarDividerColor exists from API 28 and was deprecated on API 35.
+            if (OperatingSystem.IsAndroidVersionAtLeast(28))
+            {
+                if (!OperatingSystem.IsAndroidVersionAtLeast(35))
+                    window.NavigationBarDividerColor = navigationColor;
+            }
+
+            // NavigationBarContrastEnforced exists from API 29 and was deprecated on API 35.
+            if (OperatingSystem.IsAndroidVersionAtLeast(29))
+            {
+                if (!OperatingSystem.IsAndroidVersionAtLeast(35))
+                    window.NavigationBarContrastEnforced = false;
+            }
+        }
+
+        // Use the native API on Android 11+; this API is part of the platform
+        // binding shipped with the Android SDK and does not depend on a specific
+        // AndroidX.Core binding version.
+        if (OperatingSystem.IsAndroidVersionAtLeast(30))
+        {
+            var controller = window.InsetsController;
+            if (controller is not null)
+            {
+                var lightNavigationBars = (int)WindowInsetsControllerAppearance.LightNavigationBars;
+                controller.SetSystemBarsAppearance(isDark ? 0 : lightNavigationBars, lightNavigationBars);
+            }
+        }
+        else if (OperatingSystem.IsAndroidVersionAtLeast(26) && window.DecorView is { } decor)
+        {
+            // Before API 30, AndroidX's native equivalent is the legacy view flag.
+            // This branch is deliberately limited to API 26-29, where it is supported.
             if (isDark)
                 decor.SystemUiFlags &= ~SystemUiFlags.LightNavigationBar;
             else
                 decor.SystemUiFlags |= SystemUiFlags.LightNavigationBar;
         }
-
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
-            window.NavigationBarContrastEnforced = false;
     }
 }

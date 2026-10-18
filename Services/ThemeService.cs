@@ -1,5 +1,5 @@
 using Microsoft.Maui.Controls;
-using Microsoft.Maui.Storage;
+using MauiPreferences = Microsoft.Maui.Storage.Preferences;
 
 namespace Locksy.Services;
 
@@ -9,7 +9,7 @@ public static class ThemeService
 
     public static ThemePreference GetSavedPreference()
     {
-        var value = Preferences.Default.Get(PreferenceKey, nameof(ThemePreference.System));
+        var value = MauiPreferences.Default.Get(PreferenceKey, nameof(ThemePreference.System));
         return Enum.TryParse<ThemePreference>(value, ignoreCase: true, out var preference)
             ? preference
             : ThemePreference.System;
@@ -17,7 +17,7 @@ public static class ThemeService
 
     public static void SetPreference(ThemePreference preference)
     {
-        Preferences.Default.Set(PreferenceKey, preference.ToString());
+        MauiPreferences.Default.Set(PreferenceKey, preference.ToString());
         Apply(preference);
     }
 

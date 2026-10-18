@@ -10,8 +10,8 @@
     <Nullable>enable</Nullable>
     <ApplicationTitle>Locksy</ApplicationTitle>
     <ApplicationId>com.mohsen.locksy</ApplicationId>
-    <ApplicationDisplayVersion>1.2.9</ApplicationDisplayVersion>
-    <ApplicationVersion>19</ApplicationVersion>
+    <ApplicationDisplayVersion>1.3.0</ApplicationDisplayVersion>
+    <ApplicationVersion>25</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
     <TargetSdkVersion>35</TargetSdkVersion>
     <AndroidUseLatestPlatformSdk>true</AndroidUseLatestPlatformSdk>
@@ -19,6 +19,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.111" />
+  </ItemGroup>
+
+  <!-- Ensure SplashPage XAML is always passed through MAUI XAML code generation. -->
+  <ItemGroup>
+    <MauiXaml Remove="SplashPage.xaml" />
+    <MauiXaml Include="SplashPage.xaml" Generator="MSBuild:Compile" />
   </ItemGroup>
 
   <ItemGroup>

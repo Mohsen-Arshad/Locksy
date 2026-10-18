@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Microsoft.Maui.Storage;
 using Microsoft.Maui.Controls;
+using MauiPreferences = Microsoft.Maui.Storage.Preferences;
 
 namespace Locksy.Services;
 
@@ -235,7 +235,7 @@ public static class LocalizationService
             .Replace('5', '۵').Replace('6', '۶').Replace('7', '۷').Replace('8', '۸').Replace('9', '۹');
     }
 
-    public static string CurrentLanguage => Preferences.Default.Get(LanguagePreferenceKey, "en");
+    public static string CurrentLanguage => MauiPreferences.Default.Get(LanguagePreferenceKey, "en");
     public static bool IsPersian => string.Equals(CurrentLanguage, "fa", StringComparison.OrdinalIgnoreCase);
 
     public static string Translate(string? value)
@@ -272,26 +272,26 @@ public static class LocalizationService
     /// </summary>
     public static void EnsureEnglishDefaultForV122()
     {
-        if (Preferences.Default.Get(EnglishDefaultMigrationKey, false))
+        if (MauiPreferences.Default.Get(EnglishDefaultMigrationKey, false))
             return;
 
-        var previousLanguage = Preferences.Default.Get(LanguagePreferenceKey, "en");
-        Preferences.Default.Set(LanguagePreferenceKey, "en");
-        Preferences.Default.Set(EnglishDefaultMigrationKey, true);
+        var previousLanguage = MauiPreferences.Default.Get(LanguagePreferenceKey, "en");
+        MauiPreferences.Default.Set(LanguagePreferenceKey, "en");
+        MauiPreferences.Default.Set(EnglishDefaultMigrationKey, true);
 
         // If an installed build was using Persian, queue one wallpaper regeneration so
         // the old generated lock-screen bitmap can pick up the corrected English default.
         if (string.Equals(previousLanguage, "fa", StringComparison.OrdinalIgnoreCase)
-            && Preferences.Default.Get("locksy-auto-apply", true))
+            && MauiPreferences.Default.Get("locksy-auto-apply", true))
         {
-            Preferences.Default.Set("locksy-auto-apply-pending", true);
+            MauiPreferences.Default.Set("locksy-auto-apply-pending", true);
         }
     }
 
     public static void SetLanguage(string languageCode)
     {
         var code = string.Equals(languageCode, "fa", StringComparison.OrdinalIgnoreCase) ? "fa" : "en";
-        Preferences.Default.Set(LanguagePreferenceKey, code);
+        MauiPreferences.Default.Set(LanguagePreferenceKey, code);
         ApplyCulture();
     }
 

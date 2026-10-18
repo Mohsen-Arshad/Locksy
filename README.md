@@ -1,74 +1,62 @@
 # Locksy
 
-**Turn everyday reminders into a customizable Android lock-screen wallpaper.**
+**Official release: v1.3.0**
 
-Locksy is an Android app built with .NET MAUI that lets you manage reminders and display them on your lock screen as a personalized wallpaper. Customize task colors and layout, choose a light or dark app theme, and set one-time reminders for tasks you do not want to forget.
-
-> **Project status:** Early development. Device compatibility and some Android-specific behavior are still being tested.
+Locksy is an Android lock-screen task list built with .NET MAUI 9. This repository is the first published GitHub baseline for the current, fully patched application.
 
 ## Features
 
-- **Manage reminders** - Add, edit, complete, delete, and reorder items.
-- **Lock-screen wallpaper** - Render reminders into a custom wallpaper and apply it to the lock screen.
-- **Automatic or manual updates** - Apply the wallpaper manually or refresh it after reminder changes.
-- **Customizable layouts** - Choose different arrangements that leave room for the Android lock-screen clock, with controls for vertical placement and clock clearance.
-- **Task colors** - Choose colors for individual reminders and organize the list visually.
-- **Light and dark themes** - Switch the app's appearance while preserving each reminder's saved color choice.
-- **One-time alarms** - Schedule reminder notifications for a selected date and time. Active reminders are visually distinguished from inactive ones on the wallpaper.
-- **Local storage** - Store reminder data in the app's private storage.
-- **Custom startup experience** - Includes a branded launcher icon and animated in-app splash screen.
+- Add, edit, complete, delete, and reorder tasks.
+- Configure task colors and one-time reminders.
+- Choose the app theme and language, plus a custom wallpaper background.
+- Select a responsive wallpaper layout around the system clock and tune placement.
+- Apply wallpaper manually or queue an automatic refresh for background execution.
+- Store tasks locally as JSON in the app's private storage.
+- Use a custom launcher icon, splash screen, and in-app brand treatment.
+- Use responsive in-app popups that size to content and scroll when required.
 
-## Tech Stack
+## Architecture
 
-- C#
-- .NET MAUI 9
-- Android SDK
-- Android `WallpaperManager` API
-- Android alarms and notifications
+The project uses MVVM with SOLID-oriented dependency boundaries. `TodoItem` is persistent data; `TaskItemViewModel` exposes bindable presentation properties; `MainViewModel`, `WallpaperViewModel`, `SettingsViewModel`, `ReminderViewModel`, and `NewTaskSettingsViewModel` own independent UI state and workflows. Service contracts are under `Services/Abstractions`, persistence is under `Services/Persistence`, and dependency registration/composition is centralized in `MauiProgram` and `MainPageFactory`.
 
-## Requirements
+Custom UI handlers remain in `Views/CodeBehind` by responsibility. These handlers are for modal rendering, visual transitions, dynamic control construction, and Android gesture integration; persistence and the main wallpaper/settings workflows belong in ViewModels and services.
 
-- Visual Studio 2022 with the .NET MAUI workload, or a compatible .NET 9 MAUI development environment
-- Android SDK and build tools
-- An Android device or emulator for testing
+See [`docs/architecture/ARCHITECTURE-v1.3.0-FA.md`](docs/architecture/ARCHITECTURE-v1.3.0-FA.md), [`RELEASE-NOTES-v1.3.0.md`](RELEASE-NOTES-v1.3.0.md), and [`INSTALL-v1.3.0-FA.md`](INSTALL-v1.3.0-FA.md).
 
-Locksy targets Android 7.0 (API 24) and later. Alarm precision, notification permissions, and lock-screen wallpaper behavior may vary by Android version and device manufacturer.
+## Build and run
 
-## Build and Run
-
-1. Clone or download the repository.
-2. Open `Locksy.sln` in Visual Studio.
-3. Restore NuGet packages.
-4. Select an Android emulator or connected device.
-5. Build and run the app.
-
-Alternatively, run these commands in the directory containing `Locksy.csproj`:
+Requirements: Visual Studio with the .NET MAUI workload and Android SDK.
 
 ```powershell
 dotnet restore .\Locksy.csproj
 dotnet build .\Locksy.csproj -f net9.0-android -c Debug
 ```
 
-To create a Release APK for direct installation, configure Android signing with a keystore and publish in Release mode. Keep the keystore and its passwords safe, as future updates should use the same signing key. Google Play publishing is not required for direct APK installation.
+For the project's full source-presence and platform-guard checks followed by a Debug build, run:
 
-## Android Compatibility Notes
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\VERIFY-AND-BUILD-v1.3.0.ps1
+```
 
-Locksy requests a lock-screen-only wallpaper update through Android's wallpaper API. Some manufacturers and custom lock-screen themes handle wallpapers differently, so behavior may vary across devices.
+Open `Locksy.sln`, restore packages, select an Android device/emulator, and run.
 
-Android does not provide a reliable way to detect the exact lock-screen clock position on every device. Locksy therefore provides layout and spacing controls so users can adjust the wallpaper manually.
+## Android release metadata
 
-Reminder notifications require the appropriate Android notification permission. Exact alarm scheduling may require additional permission on newer Android versions; when exact alarms are unavailable, reminders may be delivered less precisely.
+- Package identifier: `com.mohsen.locksy`.
+- Official display version: `1.3.0`.
+- Android `versionCode`: `25`.
 
-## Data and Privacy
+The display version is the public product version. The internal Android `versionCode` is intentionally kept at 25, the highest number used by the pre-release builds, rather than being reset to 20. `versionCode` is an internal monotonically increasing build number, independent from the user-facing semantic version.
 
-Reminder data is stored locally in the app's private storage. Locksy does not require a Google account or Play Store installation when installed from a signed APK.
+## Compatibility notes
 
-## Contributing
+- The persistent task JSON field names and app-private storage path are preserved.
+- The package identifier is unchanged.
+- Navigation-bar behavior uses API-version guards and the native insets API for newer Android versions.
+- Android does not expose a reliable cross-device API for reading the exact lock-screen clock position. Wallpaper placement is a responsive profile, not guaranteed clock detection.
+- `StorageHelper` remains as a compatibility facade for Android receiver paths; the main application uses `ITaskRepository` through dependency injection.
 
-Bug reports, device compatibility notes, and focused improvements are welcome. When reporting an issue, include the device model, Android version, and steps to reproduce the problem.
+## Release history note
 
-## License
-
-This project is licensed under the **GNU General Public License v2.0 (GPL-2.0)**.
-
-See the [LICENSE](LICENSE) file for the full text.
+The labels `1.3.1` through `1.3.5` were internal, pre-publication repair iterations used while validating the code, not official published product releases. Their fixes are integrated into this release, which is intentionally labeled **v1.3.0**. Notes from those iterations are kept in `docs/history/pre-release-iterations/` for traceability. No runtime source was rolled back to relabel the release.

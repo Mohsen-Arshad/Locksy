@@ -1,7 +1,8 @@
 using Microsoft.Maui.ApplicationModel;
 using System.Diagnostics;
-using Locksy.Helpers;
 using Locksy.Models;
+using Locksy.Factories;
+using Locksy.Services.Abstractions;
 using Locksy.Services;
 
 namespace Locksy;
@@ -13,9 +14,18 @@ public partial class SplashPage : ContentPage
     private CancellationTokenSource? _decorationAnimationCts;
     private MainPage? _preparedMainPage;
     private Exception? _mainPagePreparationError;
+    private readonly IMainPageFactory _mainPageFactory;
+    private readonly ITaskRepository _taskRepository;
+    private readonly IThemeSettingsService _themeSettingsService;
 
-    public SplashPage()
+    public SplashPage(
+        IMainPageFactory mainPageFactory,
+        ITaskRepository taskRepository,
+        IThemeSettingsService themeSettingsService)
     {
+        _mainPageFactory = mainPageFactory ?? throw new ArgumentNullException(nameof(mainPageFactory));
+        _taskRepository = taskRepository ?? throw new ArgumentNullException(nameof(taskRepository));
+        _themeSettingsService = themeSettingsService ?? throw new ArgumentNullException(nameof(themeSettingsService));
         InitializeComponent();
         NavigationPage.SetHasNavigationBar(this, false);
         LocalizationService.ApplyCulture();
@@ -116,11 +126,11 @@ public partial class SplashPage : ContentPage
             // Read the tiny local JSON file asynchronously while the splash remains visible;
             // avoid synchronous disk access in MainPage's constructor on the UI thread.
             await Task.Delay(120, cancellationToken);
-            var initialTasks = await StorageHelper.LoadAsync(cancellationToken);
+            var initialTasks = await _taskRepository.LoadAsync(cancellationToken);
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 if (!cancellationToken.IsCancellationRequested && _preparedMainPage is null)
-                    _preparedMainPage = new MainPage(startHidden: true, initialTasks: initialTasks);
+                    _preparedMainPage = _mainPageFactory.Create(startHidden: true, initialTasks: initialTasks);
             });
         }
         catch (OperationCanceledException) { }
@@ -145,7 +155,7 @@ public partial class SplashPage : ContentPage
         {
             // Construct inside the guarded section. A constructor failure must never be
             // swallowed by SplashPage with the app left looking permanently loading.
-            mainPage ??= new MainPage(startHidden: true);
+            mainPage ??= _mainPageFactory.Create(startHidden: true);
 
             // Re-hide just the content; the themed page background stays opaque during
             // the native NavigationPage transition, so there is no black intermediate frame.
@@ -173,7 +183,7 @@ public partial class SplashPage : ContentPage
                 mainPage.ShowStartupContentImmediately();
                 if (window is not null)
                 {
-                    var surface = Color.FromArgb(Locksy.Services.ThemeService.IsDarkMode() ? "#20212D" : "#E6E9F1");
+                    var surface = Color.FromArgb(_themeSettingsService.IsDarkMode() ? "#20212D" : "#E6E9F1");
                     window.Page = new NavigationPage(mainPage)
                     {
                         BackgroundColor = surface,
