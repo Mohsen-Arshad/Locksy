@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage
     x:Class="Locksy.MainPage"
+    x:DataType="vm:MainViewModel"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:models="clr-namespace:Locksy.Models"
+    xmlns:vm="clr-namespace:Locksy.ViewModels"
     Title="Locksy"
     BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightBackground}, Dark={StaticResource LocksyDarkBackground}}">
 
@@ -48,8 +49,7 @@
                          BorderColor="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
                          BorderWidth="1"
                          CornerRadius="13"
-                         SemanticProperties.Description="Open application settings"
-                         AutomationProperties.Name="Application settings">
+                         SemanticProperties.Description="Open application settings">
                 <ImageButton.Shadow>
                     <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="1,1.6" Radius="4.8" Opacity="0.28" />
                 </ImageButton.Shadow>
@@ -93,7 +93,7 @@
                          WidthRequest="48"
                          Padding="11"
                          Aspect="AspectFit"
-                         AutomationProperties.Name="New reminder settings" />
+                         SemanticProperties.Description="New reminder settings" />
             <Button x:Name="AddTaskButton" Grid.Column="2"
                     Text="＋ Add"
                     Clicked="AddTaskButton_Clicked"
@@ -137,7 +137,7 @@
                 </VerticalStackLayout>
             </CollectionView.EmptyView>
             <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="models:TodoItem">
+                <DataTemplate x:DataType="vm:TaskItemViewModel">
                     <Grid Margin="0,0,0,8">
                         <!-- Task shadow tuning: RoundRectangle controls roundness, TranslationY controls depth,
                              Opacity controls strength, and LocksyLight/DarkShadowEdge in App.xaml controls color.
@@ -168,7 +168,7 @@
                                    VerticalTextAlignment="Center"
                                    TextColor="{AppThemeBinding Light=#77738A, Dark=#C0BCD2}"
                                    HandlerChanged="TaskGrip_HandlerChanged"
-                                   AutomationProperties.Name="Drag to reorder" />
+                                   SemanticProperties.Description="Drag to reorder" />
                             <Ellipse Grid.Row="1" Grid.Column="3"
                                      WidthRequest="23"
                                      HeightRequest="23"
@@ -177,7 +177,7 @@
                                      StrokeThickness="1"
                                      HorizontalOptions="Center"
                                      VerticalOptions="Center"
-                                     AutomationProperties.Name="Selected reminder color" />
+                                     SemanticProperties.Description="Selected reminder color" />
                             <Label Grid.Column="2" Grid.RowSpan="2"
                                    Text="{Binding DisplayTitle}"
                                    TextDecorations="{Binding TitleDecorations}"
@@ -200,7 +200,7 @@
                                     BackgroundColor="Transparent"
                                     TextColor="{AppThemeBinding Light=#5D5A70, Dark=#D5D1E4}"
                                     Clicked="TaskOptionsButton_Clicked"
-                                    AutomationProperties.Name="Task options"
+                                    SemanticProperties.Description="Task options"
                                     VerticalOptions="Center" />
                         </Grid>
                         </Border>
@@ -234,7 +234,7 @@
                 </Border.GestureRecognizers>
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <Label x:Name="ClockLayoutValue"
-                           Text="Tasks below top clock"
+                           Text="{Binding Wallpaper.LayoutSummary}"
                            FontSize="12"
                            TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
                            VerticalTextAlignment="Center"
@@ -291,6 +291,7 @@
                         </Border>
                         <Switch x:Name="AutoApplySwitch"
                                 IsVisible="False"
+                                IsToggled="{Binding Wallpaper.IsAutoApplyEnabled, Mode=TwoWay}"
                                 Toggled="AutoApplySwitch_Toggled"
                                 OnColor="#8875E8"
                                 ThumbColor="#F8F9FD" />
@@ -314,8 +315,9 @@
             </Button>
             <Grid Grid.Column="1">
                 <Button x:Name="ApplyButton"
-                        Text="Apply wallpaper"
-                        Clicked="ApplyButton_Clicked"
+                        Text="{Binding Wallpaper.ApplyButtonText}"
+                        Command="{Binding Wallpaper.ApplyWallpaperCommand}"
+                        IsEnabled="{Binding Wallpaper.CanApply}"
                         HeightRequest="48"
                         CornerRadius="15"
                         FontSize="13"
@@ -327,13 +329,13 @@
                     </Button.Shadow>
                 </Button>
                 <HorizontalStackLayout x:Name="ApplyBusyContent"
-                                       IsVisible="False"
+                                       IsVisible="{Binding Wallpaper.IsApplying}"
                                        InputTransparent="True"
                                        HorizontalOptions="Center"
                                        VerticalOptions="Center"
                                        Spacing="7">
                     <ActivityIndicator x:Name="ApplySpinner"
-                                       IsRunning="False"
+                                       IsRunning="{Binding Wallpaper.IsApplying}"
                                        IsVisible="True"
                                        Color="White"
                                        WidthRequest="19"
@@ -350,7 +352,7 @@
 
         <Grid Grid.Row="5" ColumnDefinitions="*,Auto" ColumnSpacing="8">
             <Label x:Name="StatusLabel"
-                   Text="Ready · Drag ⠿ to reorder"
+                   Text="{Binding Wallpaper.StatusMessage}"
                    FontSize="11"
                    TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}"
                    VerticalTextAlignment="Center" />

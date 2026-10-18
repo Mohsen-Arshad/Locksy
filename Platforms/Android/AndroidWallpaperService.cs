@@ -11,6 +11,7 @@ using Android.OS;
 using AndroidX.Core.Content;
 using Locksy.Models;
 using Locksy.Services;
+using Locksy.Services.Abstractions;
 using System.Globalization;
 
 namespace Locksy.Platforms.Android;
@@ -393,7 +394,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
     {
         var safeText = text ?? string.Empty;
         var builder = AndroidStaticLayout.Builder.Obtain(safeText, 0, safeText.Length, paint, Math.Max(1, width))
-            .SetAlignment(AndroidTextLayout.Alignment.AlignNormal)
+            .SetAlignment(AndroidTextLayout.Alignment.AlignNormal!)
             .SetTextDirection(LocalizationService.IsPersian
                 ? AndroidTextDirectionHeuristics.Rtl!
                 : AndroidTextDirectionHeuristics.Ltr!)
@@ -404,7 +405,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
 
         // Inter-word justification is supported from Android 8 (API 26). Bidi-aware
         // shaping and wrapping remain active on the minimum supported API (24) regardless.
-        if (justify && (int)Build.VERSION.SdkInt >= 26)
+        if (justify && OperatingSystem.IsAndroidVersionAtLeast(26))
             builder.SetJustificationMode(AndroidText.JustificationMode.InterWord);
 
         return builder.Build();
