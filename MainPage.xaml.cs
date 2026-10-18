@@ -80,6 +80,7 @@ public partial class MainPage : ContentPage
         if (_viewModel.Settings is { } settingsViewModel)
         {
             settingsViewModel.LanguageChanged += OnLanguageChanged;
+            settingsViewModel.PropertyChanged += OnSettingsPropertyChanged;
         }
         _initializing = false;
 
@@ -185,6 +186,17 @@ public partial class MainPage : ContentPage
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => ApplyLocalization();
+
+    private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SettingsViewModel.IsDarkMode))
+        {
+            // The Auto update track receives explicit colors, which override XAML AppThemeBinding.
+            // Reapply the palette when the user changes theme so it matches Reminder alarm immediately.
+            MainThread.BeginInvokeOnMainThread(() =>
+                UpdateAutoApplyVisual(_wallpaperViewModel.IsAutoApplyEnabled));
+        }
+    }
 
     protected override void OnDisappearing()
     {

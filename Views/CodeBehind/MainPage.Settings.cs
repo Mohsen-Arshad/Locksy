@@ -526,8 +526,8 @@ public partial class MainPage : ContentPage
         var iconLabel = new Label
         {
             Text = icon,
-            FontSize = icon is "EN" or "فا" or "Aa" ? 14 : 18,
-            FontAttributes = icon == "!" ? FontAttributes.Bold : FontAttributes.None,
+            FontSize = icon is "EN" or "فا" or "Aa" ? 18 : 22,
+            FontAttributes = FontAttributes.Bold,
             TextColor = isSelected ? Colors.White : Color.FromArgb("#8A76EB"),
             HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
             VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
