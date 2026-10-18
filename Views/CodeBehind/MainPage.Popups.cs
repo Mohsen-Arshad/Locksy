@@ -398,7 +398,11 @@ public partial class MainPage : ContentPage
         var vectorIconSource = TaskActionIconSource(icon);
         if (vectorIconSource is not null)
         {
-            var iconSize = 21d; // Keep the alarm glyph visually aligned with edit, palette, and delete icons.
+            // The text-direction glyph needs a little more visual weight than the other action icons.
+            // Render it as SVG so its optical center does not depend on font baseline metrics.
+            var iconSize = string.Equals(vectorIconSource, "locksy_text_direction_icon.svg", StringComparison.OrdinalIgnoreCase)
+                ? 25d
+                : 21d;
             iconContent = new Image
             {
                 Source = ImageSource.FromFile(vectorIconSource),
@@ -482,6 +486,7 @@ public partial class MainPage : ContentPage
     }
     private static string? TaskActionIconSource(string icon) => icon switch
     {
+        "↔" => "locksy_text_direction_icon.svg",
         "edit" => "locksy_edit_icon.svg",
         "palette" => "locksy_palette_icon.svg",
         "alarm" => "locksy_alarm_icon.svg",
