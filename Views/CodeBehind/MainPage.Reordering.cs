@@ -42,14 +42,14 @@ public partial class MainPage : ContentPage
     private void TaskGrip_HandlerChanged(object? sender, EventArgs e)
     {
 #if ANDROID
-        if (sender is not Label grip || grip.Handler?.PlatformView is not Android.Views.View nativeView)
+        if (sender is not Grid grip || grip.Handler?.PlatformView is not Android.Views.View nativeView)
             return;
 
         nativeView.Touch -= NativeGrip_Touch;
         nativeView.Touch += NativeGrip_Touch;
         nativeView.Clickable = true;
         nativeView.LongClickable = true;
-        _nativeTaskGrips[nativeView] = new WeakReference<Label>(grip);
+        _nativeTaskGrips[nativeView] = new WeakReference<VisualElement>(grip);
 #endif
     }
 

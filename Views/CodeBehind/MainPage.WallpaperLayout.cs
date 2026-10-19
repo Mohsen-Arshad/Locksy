@@ -33,7 +33,7 @@ public partial class MainPage : ContentPage
             var completion = BeginPopup(
                 "Wallpaper placement",
                 "Auto adapts the layout to your screen ratio. Adjust the offset to line it up with your lock-screen clock.",
-                "⌖");
+                "layout");
 
             ModalBody.Children.Add(new Label
             {
@@ -127,14 +127,39 @@ public partial class MainPage : ContentPage
             {
                 Text = FormatUpOffsetLabel(candidateOffset),
                 FontSize = 9,
-                TextColor = PopupColor("#7E8599", "#9FA5BC")
+                TextColor = PopupColor("#7E8599", "#9FA5BC"),
+                VerticalTextAlignment = TextAlignment.Center
             };
             var offsetDownLabel = new Label
             {
                 Text = FormatDownOffsetLabel(candidateOffset),
                 FontSize = 9,
                 TextColor = PopupColor("#7E8599", "#9FA5BC"),
-                HorizontalTextAlignment = Microsoft.Maui.TextAlignment.End
+                HorizontalTextAlignment = Microsoft.Maui.TextAlignment.End,
+                VerticalTextAlignment = TextAlignment.Center
+            };
+            var offsetUpContent = new HorizontalStackLayout
+            {
+                Spacing = 3,
+                HorizontalOptions = LayoutOptions.Start,
+                VerticalOptions = LayoutOptions.Center,
+                Children =
+                {
+                    new Image { Source = "icon_arrow_up.svg", WidthRequest = 22, HeightRequest = 22, Aspect = Aspect.AspectFit, VerticalOptions = LayoutOptions.Center },
+                    offsetUpLabel
+                }
+            };
+            var offsetDownContent = new HorizontalStackLayout
+            {
+                Spacing = 3,
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.Center,
+                FlowDirection = Microsoft.Maui.FlowDirection.RightToLeft,
+                Children =
+                {
+                    new Image { Source = "icon_arrow_down.svg", WidthRequest = 22, HeightRequest = 22, Aspect = Aspect.AspectFit, VerticalOptions = LayoutOptions.Center },
+                    offsetDownLabel
+                }
             };
             offsetSlider.ValueChanged += (_, args) =>
             {
@@ -146,8 +171,8 @@ public partial class MainPage : ContentPage
             ModalBody.Children.Add(offsetSlider);
 
             var offsetRange = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) } };
-            offsetRange.Add(offsetUpLabel, 0, 0);
-            offsetRange.Add(offsetDownLabel, 1, 0);
+            offsetRange.Add(offsetUpContent, 0, 0);
+            offsetRange.Add(offsetDownContent, 1, 0);
             ModalBody.Children.Add(offsetRange);
 
             var clearanceTitle = new Label
@@ -222,7 +247,7 @@ public partial class MainPage : ContentPage
             var completion = BeginPopup(
                 "Layout preview",
                 "Schematic only. CLOCK marks the expected clock area; the sample task cards are not added to the final wallpaper.",
-                "▧");
+                "preview");
             ModalBodyScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Never;
             ModalSectionLabel.Text = LocalizedDisplayText("LOCKSY · TASKS LAYOUT");
 
@@ -500,11 +525,11 @@ public partial class MainPage : ContentPage
         return percent switch { < 0 => $"{Math.Abs(percent)}% up", > 0 => $"{percent}% down", _ => "No offset" };
     }
     private static string FormatUpOffsetLabel(float offset) => LocalizationService.IsPersian
-        ? LocalizationService.LocalizeDigits($"↑ {Math.Max(0, (int)Math.Round(-offset * 100f))}٪ بالا")
-        : $"↑ Up {Math.Max(0, (int)Math.Round(-offset * 100f))}%";
+        ? LocalizationService.LocalizeDigits($"{Math.Max(0, (int)Math.Round(-offset * 100f))}٪ بالا")
+        : $"Up {Math.Max(0, (int)Math.Round(-offset * 100f))}%";
     private static string FormatDownOffsetLabel(float offset) => LocalizationService.IsPersian
-        ? LocalizationService.LocalizeDigits($"{Math.Max(0, (int)Math.Round(offset * 100f))}٪ پایین ↓")
-        : $"Down {Math.Max(0, (int)Math.Round(offset * 100f))}% ↓";
+        ? LocalizationService.LocalizeDigits($"{Math.Max(0, (int)Math.Round(offset * 100f))}٪ پایین")
+        : $"Down {Math.Max(0, (int)Math.Round(offset * 100f))}%";
     private static string FormatClearanceLabel(float clearance) => LocalizationService.IsPersian
         ? LocalizationService.LocalizeDigits($"{clearance * 100:0}٪ از ارتفاع صفحه")
         : $"{clearance * 100:0}% of screen height";

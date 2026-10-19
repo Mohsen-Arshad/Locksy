@@ -584,12 +584,37 @@ public sealed class AndroidWallpaperService : IWallpaperService
                 using (var badgePaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(255, 243, 220) })
                     canvas.DrawCircle(badgeCenterX, centerY, badgeRadius, badgePaint);
 
-                using var numberPaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(18, 17, 20) };
-                numberPaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Bold)!);
-                numberPaint.TextSize = Math.Clamp(bodySize * 0.62f, 15f, 27f);
-                numberPaint.TextAlign = AndroidPaint.Align.Center;
-                var numberText = row.Task.IsCompleted ? "✓" : LocalizationService.LocalizeDigits((startingNumber + i + 1).ToString("00", CultureInfo.InvariantCulture));
-                canvas.DrawText(numberText, badgeCenterX, centerY + numberPaint.TextSize * 0.34f, numberPaint);
+                if (row.Task.IsCompleted)
+                {
+                    // Use the same accent check shape as the app's SVG icon set instead of
+                    // relying on a font glyph whose size and baseline vary across devices.
+                    using var completePaint = new AndroidPaint
+                    {
+                        AntiAlias = true,
+                        Color = AndroidColor.ParseColor("#8875E8")
+                    };
+                    completePaint.SetStyle(AndroidPaint.Style.Stroke);
+                    completePaint.StrokeWidth = Math.Clamp(bodySize * 0.12f, 2.8f, 6.2f);
+                    completePaint.StrokeCap = AndroidPaint.Cap.Round;
+                    completePaint.StrokeJoin = AndroidPaint.Join.Round;
+                    var checkWidth = badgeRadius * 0.62f;
+                    var checkStartX = badgeCenterX - checkWidth * 0.50f;
+                    var checkMidX = badgeCenterX - checkWidth * 0.08f;
+                    var checkEndX = badgeCenterX + checkWidth * 0.50f;
+                    canvas.DrawLine(checkStartX, centerY + badgeRadius * 0.01f,
+                        checkMidX, centerY + badgeRadius * 0.36f, completePaint);
+                    canvas.DrawLine(checkMidX, centerY + badgeRadius * 0.36f,
+                        checkEndX, centerY - badgeRadius * 0.40f, completePaint);
+                }
+                else
+                {
+                    using var numberPaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Rgb(18, 17, 20) };
+                    numberPaint.SetTypeface(Typeface.Create("sans-serif", TypefaceStyle.Bold)!);
+                    numberPaint.TextSize = Math.Clamp(bodySize * 0.62f, 15f, 27f);
+                    numberPaint.TextAlign = AndroidPaint.Align.Center;
+                    var numberText = LocalizationService.LocalizeDigits((startingNumber + i + 1).ToString("00", CultureInfo.InvariantCulture));
+                    canvas.DrawText(numberText, badgeCenterX, centerY + numberPaint.TextSize * 0.34f, numberPaint);
+                }
 
                 // Reserve an alarm slot for all rows so titles remain aligned.
                 var clockBadgeRadius = badgeRadius;
@@ -606,7 +631,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
                         canvas.DrawCircle(clockCenterX, centerY, clockBadgeRadius, clockBadgePaint);
 
                     var clockIconRadius = Math.Clamp(bodySize * 0.38f, 11f, 18f);
-                    var clockColor = AndroidColor.Rgb(112, 76, 211);
+                    var clockColor = AndroidColor.ParseColor("#8875E8");
                     using var clockPaint = new AndroidPaint { AntiAlias = true, Color = clockColor };
                     clockPaint.SetStyle(AndroidPaint.Style.Stroke);
                     clockPaint.StrokeWidth = Math.Max(2.4f, bodySize * 0.052f);

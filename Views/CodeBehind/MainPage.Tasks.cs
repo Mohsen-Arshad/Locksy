@@ -594,7 +594,7 @@ public partial class MainPage : ContentPage
     }
     private async void TaskOptionsButton_Clicked(object? sender, EventArgs e)
     {
-        if (sender is Button { BindingContext: TaskItemViewModel task })
+        if (sender is ImageButton { BindingContext: TaskItemViewModel task })
             await ShowTaskOptionsAsync(task);
     }
     private async Task ShowTaskOptionsAsync(TaskItemViewModel task)
@@ -611,7 +611,7 @@ public partial class MainPage : ContentPage
                     "Choose what to do with a task.",
                     new[] { "Edit task", "Text direction", "Change row color", "Set / edit alarm", "Delete task" },
                     cancelLabel: "Close",
-                    icons: new[] { "edit", "↔", "palette", "alarm", "trash" },
+                    icons: new[] { "edit", "direction", "palette", "alarm", "trash" },
                     popupIcon: "options",
                     keepOpenOnSelection: true);
 
@@ -858,7 +858,8 @@ public partial class MainPage : ContentPage
             message,
             new[] { "Automatic", "Left to right", "Right to left" },
             cancelLabel: "Back to task options",
-            icons: new[] { "A", "LTR", "RTL" },
+            icons: new[] { "direction-auto", "direction-ltr", "direction-rtl" },
+            popupIcon: "direction",
             keepOpenOnSelection: keepModalOpenOnSelection);
 
         if (choice is null) return;
@@ -893,7 +894,7 @@ public partial class MainPage : ContentPage
         var completion = BeginPopup(
             "Task color",
             "Choose a palette first, then a color. Your choice stays the same in Light and Dark mode.",
-            "◉");
+            "palette");
 
         var selectedPaletteKey = TodoPalette.IsValidPaletteKey(task.ColorPaletteKey)
             ? task.ColorPaletteKey
@@ -1011,14 +1012,15 @@ public partial class MainPage : ContentPage
                     TextColor = PopupColor("#3F4559", "#E5E7F5"),
                     VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
                 }, 1, 0);
-                row.Add(new Label
+                row.Add(new Image
                 {
-                    Text = selected ? "✓" : string.Empty,
-                    FontSize = 20,
-                    FontAttributes = FontAttributes.Bold,
-                    TextColor = Color.FromArgb("#8A76EB"),
-                    HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
-                    VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
+                    Source = "icon_check.svg",
+                    WidthRequest = 22,
+                    HeightRequest = 22,
+                    Aspect = Aspect.AspectFit,
+                    IsVisible = selected,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center
                 }, 2, 0);
 
                 var choiceBorder = new Border
