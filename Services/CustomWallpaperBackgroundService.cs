@@ -66,10 +66,44 @@ public static class CustomWallpaperBackgroundService
     public static WallpaperBackgroundSelection GetSelectionForRendering()
     {
         var mode = GetMode();
+        var selectedPresetKey = mode == WallpaperBackgroundMode.Preset ? GetSelectedPresetKey() : string.Empty;
+        var items = mode == WallpaperBackgroundMode.Slideshow
+            ? GetSlideshowItems()
+            : Array.Empty<WallpaperSlideshowItem>();
+        return ResolveSelectionForRendering(mode, selectedPresetKey, items, verifyImagePath: true);
+    }
+
+    /// <summary>
+    /// Retrieves the fields used by the Settings background page from one preference/list read.
+    /// In particular, a slideshow is deserialized and its files validated only once.
+    /// </summary>
+    public static WallpaperBackgroundSettingsSnapshot GetSettingsSnapshot()
+    {
+        var mode = GetMode();
+        var selectedPresetKey = GetSelectedPresetKey();
+        var interval = GetSlideshowIntervalMinutes();
+        var items = GetSlideshowItems();
+        var selection = ResolveSelectionForRendering(mode, selectedPresetKey, items, verifyImagePath: false);
+
+        return new WallpaperBackgroundSettingsSnapshot(
+            mode,
+            selectedPresetKey,
+            selection.ImagePath,
+            selection.Mode == WallpaperBackgroundMode.Preset ? selection.PresetKey : null,
+            interval,
+            items);
+    }
+
+    private static WallpaperBackgroundSelection ResolveSelectionForRendering(
+        WallpaperBackgroundMode mode,
+        string selectedPresetKey,
+        IReadOnlyList<WallpaperSlideshowItem> items,
+        bool verifyImagePath)
+    {
         switch (mode)
         {
             case WallpaperBackgroundMode.Preset:
-                return new WallpaperBackgroundSelection(mode, GetSelectedPresetKey(), null, false);
+                return new WallpaperBackgroundSelection(mode, selectedPresetKey, null, false);
 
             case WallpaperBackgroundMode.CustomImage:
             {
@@ -81,7 +115,6 @@ public static class CustomWallpaperBackgroundService
 
             case WallpaperBackgroundMode.Slideshow:
             {
-                var items = GetSlideshowItems();
                 if (items.Count == 0)
                     return new WallpaperBackgroundSelection(WallpaperBackgroundMode.Default, "", null, false);
 
@@ -92,8 +125,12 @@ public static class CustomWallpaperBackgroundService
                     WallpaperBackgroundCatalog.Find(item.Key) is not null)
                     return new WallpaperBackgroundSelection(WallpaperBackgroundMode.Preset, item.Key, null, true);
 
+                // The settings snapshot is built off the UI thread and already receives validated
+                // slideshow items. The normal wallpaper-application path retains its second check
+                // to preserve its previous behavior if a file disappears between these operations.
                 if (string.Equals(item.Kind, "image", StringComparison.OrdinalIgnoreCase) &&
-                    !string.IsNullOrWhiteSpace(item.ImagePath) && File.Exists(item.ImagePath))
+                    !string.IsNullOrWhiteSpace(item.ImagePath) &&
+                    (!verifyImagePath || File.Exists(item.ImagePath)))
                     return new WallpaperBackgroundSelection(WallpaperBackgroundMode.CustomImage, "", item.ImagePath, true);
 
                 return new WallpaperBackgroundSelection(WallpaperBackgroundMode.Default, "", null, true);

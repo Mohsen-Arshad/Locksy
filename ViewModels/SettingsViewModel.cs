@@ -37,6 +37,8 @@ public sealed class SettingsViewModel : ObservableObject
     public IReadOnlyList<WallpaperSlideshowItem> SlideshowItems => _customBackgroundManager.GetSlideshowItems();
     public int SlideshowIntervalMinutes => _customBackgroundManager.GetSlideshowIntervalMinutes();
     public bool IsSlideshowSelected => BackgroundMode == WallpaperBackgroundMode.Slideshow;
+    public WallpaperBackgroundSettingsSnapshot GetBackgroundSettingsSnapshot() =>
+        _customBackgroundManager.GetSettingsSnapshot();
     public Command<ThemePreference> SetThemePreferenceCommand { get; }
     public Command<string> SetLanguageCommand { get; }
 
