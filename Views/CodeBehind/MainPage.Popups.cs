@@ -613,7 +613,6 @@ public partial class MainPage : ContentPage
         // SettingsViewModel invalidation hooks evict stale pages when theme, language or
         // background data changes, so reopening Settings does not need to rebuild every view.
         if (_settingsFlowActive &&
-            !_settingsTransientLoadingVisible &&
             ModalBodyHost.Content is VerticalStackLayout bodyRoot &&
             ModalButtonsHost.Content is VerticalStackLayout footerRoot &&
             (bodyRoot.Children.Count > 0 || footerRoot.Children.Count > 0))
@@ -627,7 +626,6 @@ public partial class MainPage : ContentPage
         ModalButtonsHost.Content = null;
         DiscardStagedModalContentBuild();
         _deferredPopupPresentation = false;
-        _settingsTransientLoadingVisible = false;
         var completion = _popupCompletionSource;
         _popupCompletionSource = null;
         completion?.TrySetResult(result);

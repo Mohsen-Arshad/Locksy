@@ -33,18 +33,11 @@ public partial class MainPage : ContentPage
     private readonly Dictionary<string, SettingsPageVisualSnapshot> _settingsPageVisualCache =
         new(StringComparer.Ordinal);
 
-    // Warm background metadata while the Settings home is on screen, instead of making
-    // the Background button wait for preferences and slideshow-file validation.
-    private Task<WallpaperBackgroundSettingsSnapshot>? _backgroundSettingsSnapshotPrefetchTask;
-
     // Build dynamic popup/page trees while detached, then attach each root once. This avoids
     // repeated native measure/layout passes as dozens of child controls are appended.
     private VerticalStackLayout? _stagedModalBodyRoot;
     private VerticalStackLayout? _stagedModalButtonsRoot;
     private bool _deferredPopupPresentation;
-    // Prevent caching a temporary background-loading shell as if it were a real settings page.
-    private bool _settingsTransientLoadingVisible;
-
     private void BeginStagedModalContentBuild()
     {
         _stagedModalBodyRoot ??= new VerticalStackLayout
@@ -159,31 +152,9 @@ public partial class MainPage : ContentPage
     private void ClearSettingsPageVisualCache() => _settingsPageVisualCache.Clear();
 
     private void InvalidateBackgroundSettingsVisualCache() =>
-        InvalidateSettingsPageVisualCache("Settings", "Background image", "Slideshow interval");
-
-    private static Task<WallpaperBackgroundSettingsSnapshot> CreateBackgroundSettingsSnapshotTask(
-        SettingsViewModel settings)
-    {
-        var task = Task.Run(() =>
-        {
-#if DEBUG
-            var started = Stopwatch.GetTimestamp();
-#endif
-            var snapshot = settings.GetBackgroundSettingsSnapshot();
-#if DEBUG
-            Debug.WriteLine($"[Locksy.Perf] Background snapshot workerMs={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1}; slideshowItems={snapshot.SlideshowItems.Count}");
-#endif
-            return snapshot;
-        });
-
-        // Observe a prefetch fault even if the user closes Settings without visiting Background.
-        _ = task.ContinueWith(
-            failedTask => Debug.WriteLine($"[Locksy.Perf] Background snapshot prefetch failed: {failedTask.Exception}"),
-            CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-        return task;
-    }
+        InvalidateSettingsPageVisualCache(
+            "Settings", "Background image", "Personal background", "Built-in backgrounds",
+            "Slideshow settings", "Slideshow items", "Slideshow interval");
 
     private async void SettingsButton_Clicked(object? sender, EventArgs e)
     {
@@ -195,27 +166,10 @@ public partial class MainPage : ContentPage
             "settings",
             deferPresentationUntilReady: true);
 
-        var settingsToPrime = _viewModel.Settings;
-        _backgroundSettingsSnapshotPrefetchTask = null;
-
-        // Let the Settings view commit and paint before starting filesystem/JSON work. The
-        // snapshot is still prefetched during idle time, but no longer competes with first paint.
+        // Settings home is deliberately lightweight. Do not prefetch or parse wallpaper files
+        // just because the user opened Settings; those reads belong only to the Slideshow items page.
         await NavigateSettingsPageAsync("Settings", animate: false);
-        if (ReferenceEquals(_popupCompletionSource, completion))
-        {
-            await Task.Delay(100);
-            if (ReferenceEquals(_popupCompletionSource, completion) &&
-                !_settingsTransitionRunning &&
-                string.Equals(_currentSettingsPage, "Settings", StringComparison.Ordinal) &&
-                _backgroundSettingsSnapshotPrefetchTask is null &&
-                settingsToPrime is not null)
-            {
-                _backgroundSettingsSnapshotPrefetchTask = CreateBackgroundSettingsSnapshotTask(settingsToPrime);
-            }
-        }
-
         await completion.Task;
-        _backgroundSettingsSnapshotPrefetchTask = null;
         _settingsFlowActive = false;
         _currentSettingsPage = "Settings";
     }
@@ -230,89 +184,17 @@ public partial class MainPage : ContentPage
         if (_popupCompletionSource is null || _settingsTransitionRunning)
             return;
 
-        // Non-animated Settings is also used for the initial/reopen path. Keep its warm tree
-        // unless the caller explicitly invalidated it (theme/language changes already do so).
-        // Background refreshes after data mutations still rebuild the target page.
         if (!animate && !string.Equals(page, "Settings", StringComparison.Ordinal))
-        {
             InvalidateSettingsPageVisualCache(page);
-            if (string.Equals(page, "Background image", StringComparison.Ordinal))
-                InvalidateSettingsPageVisualCache("Settings");
-        }
-
-        Task<WallpaperBackgroundSettingsSnapshot>? backgroundSnapshotTask = null;
-        if (string.Equals(page, "Background image", StringComparison.Ordinal) &&
-            !_settingsPageVisualCache.ContainsKey(page) && _viewModel.Settings is { } settingsForSnapshot)
-        {
-            if (string.Equals(_currentSettingsPage, "Settings", StringComparison.Ordinal) &&
-                _backgroundSettingsSnapshotPrefetchTask is { } prefetchedSnapshot)
-            {
-                backgroundSnapshotTask = prefetchedSnapshot;
-                _backgroundSettingsSnapshotPrefetchTask = null;
-            }
-            else
-            {
-                backgroundSnapshotTask = CreateBackgroundSettingsSnapshotTask(settingsForSnapshot);
-            }
-        }
 
 #if DEBUG
         var transitionStarted = Stopwatch.GetTimestamp();
 #endif
         _settingsTransitionRunning = true;
-        // Disable taps while a transition or progressive background render is in flight.
         ModalBodyScroll.InputTransparent = true;
         ModalButtonsHost.InputTransparent = true;
-        Task? progressiveBackgroundRenderTask = null;
-
         try
         {
-            var needsFreshBackgroundPage =
-                string.Equals(page, "Background image", StringComparison.Ordinal) &&
-                !_settingsPageVisualCache.ContainsKey(page) &&
-                beforeRender is null;
-
-            // For an animated first visit, move to a purposeful loading surface immediately.
-            // Build the real page off-tree while the loading surface is visible, then swap roots
-            // once. This avoids both a long frozen old page and the empty gray modal.
-            if (needsFreshBackgroundPage && animate)
-            {
-                await NavigateFreshBackgroundPageWithLoadingSurfaceAsync(
-                    reverse, cacheCurrentPage, backgroundSnapshotTask);
-                return;
-            }
-
-            WallpaperBackgroundSettingsSnapshot? preparedBackgroundSnapshot = null;
-            if (backgroundSnapshotTask is not null)
-            {
-                try
-                {
-                    preparedBackgroundSnapshot = await backgroundSnapshotTask;
-                }
-                catch (Exception snapshotException)
-                {
-                    Debug.WriteLine($"[Locksy.Perf] Background snapshot failed; renderer will retry: {snapshotException}");
-                }
-
-                if (_popupCompletionSource is null)
-                    return;
-            }
-
-            // For explicit no-animation refreshes, keep the currently visible page in place
-            // until the detached replacement tree has been populated.
-            var backgroundPagePrebuilt = false;
-            if (needsFreshBackgroundPage)
-            {
-                BeginStagedModalContentBuild();
-                await RenderWallpaperBackgroundSettingsAsync(preparedBackgroundSnapshot);
-                if (_popupCompletionSource is null)
-                {
-                    DiscardStagedModalContentBuild();
-                    return;
-                }
-                backgroundPagePrebuilt = true;
-            }
-
             var rtlSign = LocalizationService.IsPersian ? -1d : 1d;
             var exitX = (reverse ? 1d : -1d) * rtlSign * 18d;
             var enterX = -exitX;
@@ -330,8 +212,6 @@ public partial class MainPage : ContentPage
                     return;
             }
 
-            // A pre-render action currently means the language is changing. Its text and
-            // FlowDirection affect every cached page, so discard all retained visual trees.
             if (beforeRender is not null)
                 ClearSettingsPageVisualCache();
             else if (animate && cacheCurrentPage)
@@ -349,8 +229,6 @@ public partial class MainPage : ContentPage
             var restoredFromCache = TryRestoreSettingsPageVisuals(page);
             if (restoredFromCache)
             {
-                // The cached tree is already attached by TryRestore; discard any empty staging
-                // roots left by an initial deferred popup open.
                 DiscardStagedModalContentBuild();
                 ModalBody.FlowDirection = LocalizationService.CurrentFlowDirection;
                 ModalButtons.FlowDirection = LocalizationService.CurrentFlowDirection;
@@ -360,7 +238,6 @@ public partial class MainPage : ContentPage
                 BeginStagedModalContentBuild();
                 ModalBody.FlowDirection = LocalizationService.CurrentFlowDirection;
                 ModalButtons.FlowDirection = LocalizationService.CurrentFlowDirection;
-                if (!backgroundPagePrebuilt)
                 switch (page)
                 {
                     case "Settings":
@@ -370,10 +247,11 @@ public partial class MainPage : ContentPage
                         RenderLanguageSettings();
                         break;
                     case "Background image":
-                        // The renderer adds the immediately visible content synchronously,
-                        // then yields between card batches. Run it alongside the entry animation.
-                        progressiveBackgroundRenderTask =
-                            RenderWallpaperBackgroundSettingsAsync(preparedBackgroundSnapshot);
+                    case "Personal background":
+                    case "Built-in backgrounds":
+                    case "Slideshow settings":
+                    case "Slideshow items":
+                        RenderWallpaperBackgroundSettings(page);
                         break;
                     case "Slideshow interval":
                         RenderSlideshowIntervalSettings();
@@ -389,11 +267,9 @@ public partial class MainPage : ContentPage
                 }
             }
 
-            // Attach a complete page tree once rather than invalidating the live native layout
-            // for each child that the render helpers add. This also presents a deferred first
-            // popup only after its actual contents exist.
+            // Only attach completed, relevant content. The old global loading surface is removed:
+            // Background is now a lightweight menu and heavy slideshow rows live in their own submenu.
             CommitStagedModalContentBuild();
-
             _currentSettingsPage = page;
             _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
 
@@ -404,13 +280,8 @@ public partial class MainPage : ContentPage
                 ModalBodyScroll.TranslationX = 0;
                 ModalButtons.TranslationX = 0;
                 SetPopupHeaderVisualState(1, 0);
-
-                if (progressiveBackgroundRenderTask is not null)
-                    await progressiveBackgroundRenderTask;
-
 #if DEBUG
-                if (progressiveBackgroundRenderTask is null)
-                    Debug.WriteLine($"[Locksy.Perf] Settings page={page}; source={(restoredFromCache ? "cache" : "fresh-render")}; viewBuildMs={Stopwatch.GetElapsedTime(pageBuildStarted).TotalMilliseconds:F1}; bodyViews={ModalBody.Children.Count}");
+                Debug.WriteLine($"[Locksy.Perf] Settings page={page}; source={(restoredFromCache ? "cache" : "fresh-render")}; viewBuildMs={Stopwatch.GetElapsedTime(pageBuildStarted).TotalMilliseconds:F1}; bodyViews={ModalBody.Children.Count}");
 #endif
                 return;
             }
@@ -420,21 +291,12 @@ public partial class MainPage : ContentPage
             ModalBodyScroll.TranslationX = enterX;
             ModalButtons.TranslationX = enterX;
             SetPopupHeaderVisualState(0, enterX);
-
-            var entryAnimationTask = Task.WhenAll(
+            await Task.WhenAll(
                 ModalBodyScroll.FadeToAsync(1, 170, Easing.CubicOut),
                 ModalButtons.FadeToAsync(1, 170, Easing.CubicOut),
                 ModalBodyScroll.TranslateToAsync(0, 0, 170, Easing.CubicOut),
                 ModalButtons.TranslateToAsync(0, 0, 170, Easing.CubicOut),
                 AnimatePopupHeaderAsync(1, 0, 170, Easing.CubicOut));
-
-            if (progressiveBackgroundRenderTask is not null)
-                await Task.WhenAll(entryAnimationTask, progressiveBackgroundRenderTask);
-            else
-                await entryAnimationTask;
-
-            if (_popupCompletionSource is null)
-                return;
 
 #if DEBUG
             Debug.WriteLine($"[Locksy.Perf] Settings page={page}; source={(restoredFromCache ? "cache" : "fresh-render")}; viewBuildMs={Stopwatch.GetElapsedTime(pageBuildStarted).TotalMilliseconds:F1}; bodyViews={ModalBody.Children.Count}");
@@ -450,170 +312,6 @@ public partial class MainPage : ContentPage
             _settingsTransitionRunning = false;
         }
     }
-    private async Task NavigateFreshBackgroundPageWithLoadingSurfaceAsync(
-        bool reverse,
-        bool cacheCurrentPage,
-        Task<WallpaperBackgroundSettingsSnapshot>? snapshotTask)
-    {
-#if DEBUG
-        var loadStarted = Stopwatch.GetTimestamp();
-#endif
-        var rtlSign = LocalizationService.IsPersian ? -1d : 1d;
-        var exitX = (reverse ? 1d : -1d) * rtlSign * 18d;
-        var enterX = -exitX;
-
-        await Task.WhenAll(
-            ModalBodyScroll.FadeToAsync(0, 90, Easing.CubicIn),
-            ModalButtons.FadeToAsync(0, 90, Easing.CubicIn),
-            ModalBodyScroll.TranslateToAsync(exitX, 0, 90, Easing.CubicIn),
-            ModalButtons.TranslateToAsync(exitX, 0, 90, Easing.CubicIn),
-            AnimatePopupHeaderAsync(0, exitX, 90, Easing.CubicIn));
-
-        if (_popupCompletionSource is null)
-            return;
-
-        if (cacheCurrentPage)
-            CacheCurrentSettingsPageVisuals();
-        else
-        {
-            ModalBodyHost.Content = null;
-            ModalButtonsHost.Content = null;
-        }
-
-        ModalBodyHost.Content = null;
-        ModalButtonsHost.Content = null;
-        ConfigureSettingsPopupHeader("Background image");
-        _currentSettingsPage = "Background image";
-        _settingsTransientLoadingVisible = true;
-
-        // This is a real, themed loading surface rather than an empty placeholder. It paints
-        // quickly and gives the UI thread a chance to render while the background content builds.
-        var loadingBody = new VerticalStackLayout
-        {
-            Spacing = 14,
-            Padding = new Thickness(12, 24),
-            MinimumHeightRequest = 250,
-            HorizontalOptions = LayoutOptions.Fill,
-            VerticalOptions = LayoutOptions.Center,
-            FlowDirection = LocalizationService.CurrentFlowDirection
-        };
-        loadingBody.Children.Add(new ActivityIndicator
-        {
-            IsRunning = true,
-            Color = Color.FromArgb("#8875E8"),
-            WidthRequest = 30,
-            HeightRequest = 30,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Center
-        });
-        loadingBody.Children.Add(new Label
-        {
-            Text = LocalizedDisplayText("Preparing background options..."),
-            FontSize = 12,
-            TextColor = PopupColor("#6F7589", "#ADB2C8"),
-            HorizontalTextAlignment = TextAlignment.Center,
-            VerticalTextAlignment = TextAlignment.Center,
-            FlowDirection = LocalizationService.CurrentFlowDirection
-        });
-        var loadingFooter = new VerticalStackLayout { Spacing = 8, FlowDirection = LocalizationService.CurrentFlowDirection };
-        ModalBodyHost.Content = loadingBody;
-        ModalButtonsHost.Content = loadingFooter;
-
-        ModalBodyScroll.Opacity = 0;
-        ModalButtons.Opacity = 0;
-        ModalBodyScroll.TranslationX = enterX;
-        ModalButtons.TranslationX = enterX;
-        SetPopupHeaderVisualState(0, enterX);
-        await Task.WhenAll(
-            ModalBodyScroll.FadeToAsync(1, 170, Easing.CubicOut),
-            ModalButtons.FadeToAsync(1, 170, Easing.CubicOut),
-            ModalBodyScroll.TranslateToAsync(0, 0, 170, Easing.CubicOut),
-            ModalButtons.TranslateToAsync(0, 0, 170, Easing.CubicOut),
-            AnimatePopupHeaderAsync(1, 0, 170, Easing.CubicOut));
-
-        if (_popupCompletionSource is null)
-            return;
-
-        // Yield after the loader animation so Android can actually paint it before parsing the
-        // snapshot and constructing all preset/photo controls.
-        await Task.Yield();
-        WallpaperBackgroundSettingsSnapshot? snapshot = null;
-        if (snapshotTask is not null)
-        {
-            try
-            {
-                snapshot = await snapshotTask;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Locksy.Perf] Background snapshot failed after loader display: {ex}");
-            }
-        }
-
-        if (_popupCompletionSource is null)
-            return;
-
-        try
-        {
-            BeginStagedModalContentBuild();
-            await RenderWallpaperBackgroundSettingsAsync(snapshot);
-            if (_popupCompletionSource is null)
-            {
-                DiscardStagedModalContentBuild();
-                return;
-            }
-
-            await Task.WhenAll(
-                ModalBodyScroll.FadeToAsync(0, 75, Easing.CubicIn),
-                ModalButtons.FadeToAsync(0, 75, Easing.CubicIn));
-
-            ModalBodyHost.Content = null;
-            ModalButtonsHost.Content = null;
-            CommitStagedModalContentBuild();
-            _settingsTransientLoadingVisible = false;
-            _currentSettingsPage = "Background image";
-            _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
-
-            ModalBodyScroll.Opacity = 0;
-            ModalButtons.Opacity = 0;
-            ModalBodyScroll.TranslationX = enterX * 0.25;
-            ModalButtons.TranslationX = enterX * 0.25;
-            await Task.WhenAll(
-                ModalBodyScroll.FadeToAsync(1, 115, Easing.CubicOut),
-                ModalButtons.FadeToAsync(1, 115, Easing.CubicOut),
-                ModalBodyScroll.TranslateToAsync(0, 0, 115, Easing.CubicOut),
-                ModalButtons.TranslateToAsync(0, 0, 115, Easing.CubicOut));
-#if DEBUG
-            Debug.WriteLine($"[Locksy.Perf] Background loading surface totalMs={Stopwatch.GetElapsedTime(loadStarted).TotalMilliseconds:F1}; items={snapshot?.SlideshowItems.Count ?? 0}; bodyViews={ModalBody.Children.Count}");
-#endif
-        }
-        catch (Exception ex)
-        {
-            DiscardStagedModalContentBuild();
-            Debug.WriteLine($"[Locksy.Perf] Background rendering failed: {ex}");
-            if (_popupCompletionSource is null)
-                return;
-
-            // If failure happened after the real tree was attached (for example during a
-            // cancellable fade), do not mutate the detached loading root or replace valid content.
-            if (!ReferenceEquals(ModalBodyHost.Content, loadingBody) || !_settingsTransientLoadingVisible)
-                return;
-
-            loadingBody.Children.Clear();
-            loadingBody.Children.Add(new Label
-            {
-                Text = LocalizedDisplayText("Background options could not be loaded."),
-                FontSize = 12,
-                TextColor = PopupColor("#D45C72", "#FF9EAF"),
-                HorizontalTextAlignment = TextAlignment.Center,
-                VerticalTextAlignment = TextAlignment.Center
-            });
-            loadingFooter.Children.Clear();
-            loadingFooter.Children.Add(CreatePopupAction(
-                "Retry", null, primary: true, destructive: false,
-                customAction: () => _ = NavigateSettingsPageAsync("Background image", animate: true, cacheCurrentPage: false)));
-        }
-    }
 
     private void ConfigureSettingsPopupHeader(string page)
     {
@@ -622,6 +320,10 @@ public partial class MainPage : ContentPage
             "Settings" => "Settings",
             "Language" => "Language",
             "Background image" => "Background image",
+            "Personal background" => "Personal background",
+            "Built-in backgrounds" => "Built-in backgrounds",
+            "Slideshow settings" => "Slideshow settings",
+            "Slideshow items" => "Slideshow items",
             "Slideshow interval" => "Slideshow interval",
             "About" => "About",
             _ => "Settings"
@@ -630,8 +332,12 @@ public partial class MainPage : ContentPage
         {
             "Settings" => "Manage your app theme, language, custom wallpaper and app information.",
             "Language" => "Choose your preferred language. English is the default.",
-            "Background image" => _viewModel.Settings?.BackgroundSummary ?? "The default Locksy background is currently active.",
-            "Slideshow interval" => "Choose how often the background changes. Select an interval below.",
+            "Background image" => _viewModel.Settings?.BackgroundSummary ?? "Choose which part of your wallpaper settings to manage.",
+            "Personal background" => "Choose the default Locksy background or one photo from your device.",
+            "Built-in backgrounds" => "Choose a built-in Locksy background or add one to your slideshow.",
+            "Slideshow settings" => "Choose photos, manage slideshow items and set the rotation interval.",
+            "Slideshow items" => "Review and remove photos or built-in backgrounds in the slideshow.",
+            "Slideshow interval" => "Choose how often the background changes.",
             "About" => "Locksy keeps important tasks visible directly on your Android lock screen. Customize task colors, reminders, theme, layout and background image. Your task list is stored locally on this device.",
             _ => string.Empty
         };
@@ -640,6 +346,10 @@ public partial class MainPage : ContentPage
             "Settings" => "settings",
             "Language" => "language",
             "Background image" => "background",
+            "Personal background" => "photo-add",
+            "Built-in backgrounds" => "wallpaper",
+            "Slideshow settings" => "slideshow",
+            "Slideshow items" => "slideshow",
             "Slideshow interval" => "slideshow",
             "About" => "about",
             _ => "settings"
@@ -895,7 +605,7 @@ public partial class MainPage : ContentPage
             }, isSelected: isPersian);
         BuildSettingsFooter(isHome: false);
     }
-    private async Task RenderWallpaperBackgroundSettingsAsync(WallpaperBackgroundSettingsSnapshot? snapshot)
+    private void RenderWallpaperBackgroundSettings(string page)
     {
         var settings = _viewModel.Settings;
         if (settings is null)
@@ -904,93 +614,99 @@ public partial class MainPage : ContentPage
             return;
         }
 
-#if DEBUG
-        var renderStarted = Stopwatch.GetTimestamp();
-#endif
-        // Never fall back to reading preferences or checking image paths synchronously on the UI thread.
-        snapshot ??= await Task.Run(() => settings.GetBackgroundSettingsSnapshot());
-        if (_popupCompletionSource is null)
-            return;
+        var mode = settings.BackgroundMode;
+        var selectedPresetKey = settings.SelectedPresetKey;
+        var isSelectedPreset = mode == WallpaperBackgroundMode.Preset;
 
-        var backgroundMode = snapshot.Mode;
-        var selectedPresetKey = snapshot.SelectedPresetKey;
-        var currentBackgroundPresetKey = snapshot.CurrentPreviewPresetKey;
-        var currentPreviewPath = snapshot.CurrentPreviewImagePath;
-        var isSlideshowSelected = backgroundMode == WallpaperBackgroundMode.Slideshow;
-        var slideshowItems = snapshot.SlideshowItems;
-
-        // Add above-the-fold actions and footer first so the target page has real content
-        // before the entrance transition begins; don't build all preset and photo controls at once.
-        AddSettingsOption("Default Locksy background", "Use the original Locksy gradient and grid.", "default-background",
-            async () =>
-            {
-                settings.SelectDefaultBackground();
-                await NavigateSettingsPageAsync("Background image", animate: false);
-            }, isSelected: backgroundMode == WallpaperBackgroundMode.Default,
-            iconImageSize: 30, iconContainerSize: 48);
-        if (backgroundMode == WallpaperBackgroundMode.Default)
-            AddCurrentWallpaperBackgroundPreview(backgroundMode, selectedPresetKey, currentBackgroundPresetKey, currentPreviewPath);
-
-        AddSettingsOption("Choose one photo", "Use one photo and crop it to fill the lock screen.", "photo-add",
-            PickCustomBackgroundWithinSettingsAsync,
-            isSelected: backgroundMode == WallpaperBackgroundMode.CustomImage,
-            iconImageSize: 30, iconContainerSize: 48);
-        if (backgroundMode == WallpaperBackgroundMode.CustomImage)
-            AddCurrentWallpaperBackgroundPreview(backgroundMode, selectedPresetKey, currentBackgroundPresetKey, currentPreviewPath);
-
-        BuildSettingsFooter(isHome: false);
-        await Task.Delay(16);
-        if (_popupCompletionSource is null)
-            return;
-
-        ModalBody.Children.Add(CreateSettingsSectionLabel("Built-in backgrounds"));
-        var presets = settings.BackgroundPresets;
-        for (var index = 0; index < presets.Count; index++)
+        switch (page)
         {
-            var preset = presets[index];
-            AddWallpaperPresetCard(preset, backgroundMode == WallpaperBackgroundMode.Preset &&
-                                           string.Equals(selectedPresetKey, preset.Key, StringComparison.OrdinalIgnoreCase));
-
-            // One preset per UI turn: lets Android lay out/paint between relatively complex cards.
-            await Task.Delay(16);
-            if (_popupCompletionSource is null)
+            case "Background image":
+                // This hub intentionally contains only three small navigation cards. It does not
+                // deserialize slideshow JSON, check image paths, or build preset/photo rows.
+                AddSettingsOption("Personal background", "Use the default Locksy background or choose one photo.", "photo-add",
+                    () => NavigateSettingsPageAsync("Personal background"), iconImageSize: 30, iconContainerSize: 48);
+                AddSettingsOption("Built-in backgrounds", "Browse the background designs included with Locksy.", "wallpaper",
+                    () => NavigateSettingsPageAsync("Built-in backgrounds"), iconImageSize: 30, iconContainerSize: 48);
+                AddSettingsOption("Slideshow settings", "Choose multiple photos and adjust automatic rotation.", "slideshow",
+                    () => NavigateSettingsPageAsync("Slideshow settings"), iconImageSize: 30, iconContainerSize: 48);
+                BuildSettingsFooter(isHome: false);
                 return;
-        }
 
-        if (backgroundMode == WallpaperBackgroundMode.Preset)
-            AddCurrentWallpaperBackgroundPreview(backgroundMode, selectedPresetKey, currentBackgroundPresetKey, currentPreviewPath);
+            case "Personal background":
+                AddSettingsOption("Default Locksy background", "Use the original Locksy gradient and grid.", "default-background",
+                    async () =>
+                    {
+                        settings.SelectDefaultBackground();
+                        InvalidateBackgroundSettingsVisualCache();
+                        await NavigateSettingsPageAsync("Personal background", animate: false);
+                    }, isSelected: mode == WallpaperBackgroundMode.Default,
+                    iconImageSize: 30, iconContainerSize: 48);
 
-        ModalBody.Children.Add(CreateSettingsSectionLabel("Slideshow"));
-        AddSettingsOption("Choose multiple photos", "Add several photos from your device to the slideshow.", "multiple-photos",
-            ChooseSlideshowImagesWithinSettingsAsync,
-            iconImageSize: 30, iconContainerSize: 48);
-        AddSettingsOption("Use slideshow", "Cycle through your selected photos and built-in backgrounds.", "slideshow",
-            async () =>
-            {
-                if (settings.ActivateSlideshow())
+                AddSettingsOption("Choose one photo", "Use one photo and crop it to fill the lock screen.", "photo-add",
+                    PickCustomBackgroundWithinSettingsAsync,
+                    isSelected: mode == WallpaperBackgroundMode.CustomImage,
+                    iconImageSize: 30, iconContainerSize: 48);
+
+                if (mode == WallpaperBackgroundMode.CustomImage)
                 {
-                    await NavigateSettingsPageAsync("Background image", animate: false);
-                    return;
+                    AddCurrentWallpaperBackgroundPreview(mode, selectedPresetKey, null, settings.CurrentBackgroundPreviewPath);
+                    AddSettingsOption("Remove custom photo", "Return to the default Locksy background.", "trash",
+                        RemoveCustomBackgroundWithinSettingsAsync, iconImageSize: 30, iconContainerSize: 48);
+                }
+                else if (mode == WallpaperBackgroundMode.Default)
+                {
+                    AddCurrentWallpaperBackgroundPreview(mode, selectedPresetKey, null, null);
                 }
 
-                SetModalMessageText(LocalizationService.Translate("Add at least two backgrounds to start a slideshow."));
-                ModalMessage.TextColor = Color.FromArgb("#D45C72");
-                ModalMessage.IsVisible = true;
-            }, isSelected: isSlideshowSelected,
-            iconImageSize: 30, iconContainerSize: 48);
-        if (isSlideshowSelected)
-            AddCurrentWallpaperBackgroundPreview(backgroundMode, selectedPresetKey, currentBackgroundPresetKey, currentPreviewPath);
+                BuildSettingsFooter(isHome: false, backLabelOverride: "Back to background", backPageOverride: "Background image");
+                return;
 
-        AddSlideshowIntervalPicker(settings, snapshot.SlideshowIntervalMinutes);
-        await Task.Delay(16);
-        if (_popupCompletionSource is null)
-            return;
+            case "Built-in backgrounds":
+                ModalBody.Children.Add(CreateSettingsSectionLabel("Built-in backgrounds"));
+                foreach (var preset in settings.BackgroundPresets)
+                    AddWallpaperPresetCard(preset, isSelectedPreset &&
+                        string.Equals(selectedPresetKey, preset.Key, StringComparison.OrdinalIgnoreCase));
 
-        await AddSlideshowItemsAsync(slideshowItems);
+                if (isSelectedPreset)
+                    AddCurrentWallpaperBackgroundPreview(mode, selectedPresetKey, selectedPresetKey, null);
 
-#if DEBUG
-        Debug.WriteLine($"[Locksy.Perf] Background progressiveRenderMs={Stopwatch.GetElapsedTime(renderStarted).TotalMilliseconds:F1}; presets={presets.Count}; slideshowItems={slideshowItems.Count}; bodyViews={ModalBody.Children.Count}");
-#endif
+                BuildSettingsFooter(isHome: false, backLabelOverride: "Back to background", backPageOverride: "Background image");
+                return;
+
+            case "Slideshow settings":
+                AddSettingsOption("Choose multiple photos", "Add several photos from your device to the slideshow.", "multiple-photos",
+                    ChooseSlideshowImagesWithinSettingsAsync,
+                    iconImageSize: 30, iconContainerSize: 48);
+
+                AddSettingsOption("Use slideshow", "Cycle through your selected photos and built-in backgrounds.", "slideshow",
+                    async () =>
+                    {
+                        if (settings.ActivateSlideshow())
+                        {
+                            InvalidateBackgroundSettingsVisualCache();
+                            await NavigateSettingsPageAsync("Slideshow settings", animate: false);
+                            return;
+                        }
+
+                        SetModalMessageText(LocalizationService.Translate("Add at least two backgrounds to start a slideshow."));
+                        ModalMessage.TextColor = Color.FromArgb("#D45C72");
+                        ModalMessage.IsVisible = true;
+                    }, isSelected: mode == WallpaperBackgroundMode.Slideshow,
+                    iconImageSize: 30, iconContainerSize: 48);
+
+                AddSlideshowIntervalPicker(settings, settings.SlideshowIntervalMinutes);
+                AddSettingsOption("Manage slideshow items", "Review and remove photos or built-in backgrounds.", "multiple-photos",
+                    () => NavigateSettingsPageAsync("Slideshow items"), iconImageSize: 30, iconContainerSize: 48);
+                BuildSettingsFooter(isHome: false, backLabelOverride: "Back to background", backPageOverride: "Background image");
+                return;
+
+            case "Slideshow items":
+                // This is the only background submenu that builds image rows. It is only built
+                // after an explicit tap; there is no spinner or global loading placeholder.
+                AddSlideshowItems(settings.SlideshowItems);
+                BuildSettingsFooter(isHome: false, backLabelOverride: "Back to slideshow settings", backPageOverride: "Slideshow settings");
+                return;
+        }
     }
 
     private Label CreateSettingsSectionLabel(string text) => new()
@@ -1168,7 +884,8 @@ public partial class MainPage : ContentPage
         useButton.Clicked += async (_, _) =>
         {
             settingsPreset(preset.Key);
-            await NavigateSettingsPageAsync("Background image", animate: false);
+            InvalidateBackgroundSettingsVisualCache();
+            await NavigateSettingsPageAsync("Built-in backgrounds", animate: false);
         };
         row.Add(useButton, 2, 0);
 
@@ -1187,7 +904,8 @@ public partial class MainPage : ContentPage
         addButton.Clicked += async (_, _) =>
         {
             _viewModel.Settings?.AddPresetToSlideshow(preset.Key);
-            await NavigateSettingsPageAsync("Background image", animate: false);
+            InvalidateBackgroundSettingsVisualCache();
+            await NavigateSettingsPageAsync("Built-in backgrounds", animate: false);
         };
         row.Add(addButton, 3, 0);
 
@@ -1274,7 +992,7 @@ public partial class MainPage : ContentPage
         var settings = _viewModel.Settings;
         if (settings is null)
         {
-            BuildSettingsFooter(isHome: false, backLabelOverride: "Back to background", backPageOverride: "Background image");
+            BuildSettingsFooter(isHome: false, backLabelOverride: "Back to slideshow settings", backPageOverride: "Slideshow settings");
             return;
         }
 
@@ -1290,7 +1008,7 @@ public partial class MainPage : ContentPage
         foreach (var interval in new[] { 5, 10, 15, 30, 60 })
             AddSlideshowIntervalOption(settings, interval);
 
-        BuildSettingsFooter(isHome: false, backLabelOverride: "Back to background", backPageOverride: "Background image");
+        BuildSettingsFooter(isHome: false, backLabelOverride: "Back to slideshow settings", backPageOverride: "Slideshow settings");
     }
 
     private void AddSlideshowIntervalOption(SettingsViewModel settings, int minutes)
@@ -1377,15 +1095,16 @@ public partial class MainPage : ContentPage
                 settings.SetSlideshowIntervalMinutes(minutes);
                 InvalidateSettingsPageVisualCache("Slideshow interval", "Background image", "Settings");
             }
+            InvalidateBackgroundSettingsVisualCache();
             await NavigateSettingsPageAsync(
-                "Background image", animate: true, reverse: true, cacheCurrentPage: false);
+                "Slideshow settings", animate: true, reverse: true, cacheCurrentPage: false);
         };
         card.GestureRecognizers.Add(tap);
         SemanticProperties.SetDescription(card, LocalizedDisplayText($"Every {minutes} minutes"));
         ModalBody.Children.Add(card);
     }
 
-    private async Task AddSlideshowItemsAsync(IReadOnlyList<WallpaperSlideshowItem> items)
+    private void AddSlideshowItems(IReadOnlyList<WallpaperSlideshowItem> items)
     {
         ModalBody.Children.Add(new Label
         {
@@ -1482,7 +1201,8 @@ public partial class MainPage : ContentPage
             remove.Clicked += async (_, _) =>
             {
                 _viewModel.Settings?.RemoveSlideshowItem(item.Id);
-                await NavigateSettingsPageAsync("Background image", animate: false);
+                InvalidateBackgroundSettingsVisualCache();
+                await NavigateSettingsPageAsync("Slideshow items", animate: false);
             };
             row.Add(remove, 2, 0);
             ModalBody.Children.Add(new Border
@@ -1494,13 +1214,6 @@ public partial class MainPage : ContentPage
                 Content = row
             });
 
-            // Avoid inflating every image row in the same UI frame on devices with many photos.
-            if ((index + 1) % 2 == 0 && index + 1 < items.Count)
-            {
-                await Task.Delay(16);
-                if (_popupCompletionSource is null)
-                    return;
-            }
         }
     }
 
@@ -1517,7 +1230,8 @@ public partial class MainPage : ContentPage
             ModalMessage.IsVisible = true;
             return;
         }
-        await NavigateSettingsPageAsync("Background image", animate: false);
+        InvalidateBackgroundSettingsVisualCache();
+        await NavigateSettingsPageAsync("Slideshow settings", animate: false);
     }
     private async Task PickCustomBackgroundWithinSettingsAsync()
     {
@@ -1539,16 +1253,16 @@ public partial class MainPage : ContentPage
             return;
         }
 
-        InvalidateSettingsPageVisualCache("Background image", "Settings");
-        await NavigateSettingsPageAsync("Background image", animate: true, cacheCurrentPage: false);
+        InvalidateBackgroundSettingsVisualCache();
+        await NavigateSettingsPageAsync("Personal background", animate: true, cacheCurrentPage: false);
     }
     private async Task RemoveCustomBackgroundWithinSettingsAsync()
     {
         if (_viewModel.Settings?.RemoveCustomBackground() != true)
             return;
 
-        InvalidateSettingsPageVisualCache("Background image", "Settings");
-        await NavigateSettingsPageAsync("Background image", animate: true, cacheCurrentPage: false);
+        InvalidateBackgroundSettingsVisualCache();
+        await NavigateSettingsPageAsync("Personal background", animate: true, cacheCurrentPage: false);
     }
     private void RenderAboutSettings()
     {
