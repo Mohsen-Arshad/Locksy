@@ -60,22 +60,23 @@ public partial class MainPage : ContentPage
     }
     private Task AnimatePopupHeaderAsync(double opacity, double translationX, uint duration, Easing easing)
     {
+        // Set position directly; animate opacity only. This halves the header animation jobs.
+        ModalSectionLabel.TranslationX = translationX;
+        ModalTitle.TranslationX = translationX;
+        ModalMessage.TranslationX = translationX;
+        ModalIconImage.TranslationX = translationX;
+        ModalIconTextLabel.TranslationX = translationX;
         return Task.WhenAll(
             ModalSectionLabel.FadeTo(opacity, duration, easing),
             ModalTitle.FadeTo(opacity, duration, easing),
             ModalMessage.FadeTo(opacity, duration, easing),
             ModalIconImage.FadeTo(opacity, duration, easing),
-            ModalIconTextLabel.FadeTo(opacity, duration, easing),
-            ModalSectionLabel.TranslateTo(translationX, 0, duration, easing),
-            ModalTitle.TranslateTo(translationX, 0, duration, easing),
-            ModalMessage.TranslateTo(translationX, 0, duration, easing),
-            ModalIconImage.TranslateTo(translationX, 0, duration, easing),
-            ModalIconTextLabel.TranslateTo(translationX, 0, duration, easing));
+            ModalIconTextLabel.FadeTo(opacity, duration, easing));
     }
     private const double StandardIconSize = 30d;
 
     private static bool IsLanguageBadgeIcon(string key) => key.Trim().ToLowerInvariant() is
-            "language-en" or "language-fa";
+        "language-en" or "language-fa";
 
     private string LanguageBadgeText(string key) => key.Trim().ToLowerInvariant() switch
     {
@@ -211,8 +212,8 @@ public partial class MainPage : ContentPage
             ModalOverlay.Opacity = 0;
             ModalCard.Scale = 0.94;
             ModalOverlay.IsVisible = true;
-            _ = ModalOverlay.FadeTo(1, 160, Easing.CubicOut);
-            _ = ModalCard.ScaleTo(1, 180, Easing.CubicOut);
+            _ = ModalOverlay.FadeTo(1, 90, Easing.CubicOut);
+            _ = ModalCard.ScaleTo(1, 100, Easing.CubicOut);
         }
         return completion;
     }
@@ -221,13 +222,14 @@ public partial class MainPage : ContentPage
         // BeginPopup callers build the new controls synchronously after it returns.
         try
         {
-            await Task.Delay(20);
+            // The caller populates the replacement controls synchronously. Yield one UI turn.
+            await Task.Yield();
             await Task.WhenAll(
-                ModalBodyScroll.FadeTo(1, 145, Easing.CubicOut),
-                ModalButtons.FadeTo(1, 145, Easing.CubicOut),
-                ModalBodyScroll.TranslateTo(0, 0, 145, Easing.CubicOut),
-                ModalButtons.TranslateTo(0, 0, 145, Easing.CubicOut),
-                AnimatePopupHeaderAsync(1, 0, 145, Easing.CubicOut));
+                ModalBodyScroll.FadeTo(1, 85, Easing.CubicOut),
+                ModalButtons.FadeTo(1, 85, Easing.CubicOut),
+                ModalBodyScroll.TranslateTo(0, 0, 85, Easing.CubicOut),
+                ModalButtons.TranslateTo(0, 0, 85, Easing.CubicOut),
+                AnimatePopupHeaderAsync(1, 0, 85, Easing.CubicOut));
         }
         catch (OperationCanceledException)
         {
@@ -575,11 +577,11 @@ public partial class MainPage : ContentPage
         {
             var exitX = LocalizationService.IsPersian ? -12d : 12d;
             await Task.WhenAll(
-                ModalBodyScroll.FadeTo(0, 85, Easing.CubicIn),
-                ModalButtons.FadeTo(0, 85, Easing.CubicIn),
-                ModalBodyScroll.TranslateTo(exitX, 0, 85, Easing.CubicIn),
-                ModalButtons.TranslateTo(exitX, 0, 85, Easing.CubicIn),
-                AnimatePopupHeaderAsync(0, exitX, 85, Easing.CubicIn));
+                ModalBodyScroll.FadeTo(0, 45, Easing.CubicIn),
+                ModalButtons.FadeTo(0, 45, Easing.CubicIn),
+                ModalBodyScroll.TranslateTo(exitX, 0, 45, Easing.CubicIn),
+                ModalButtons.TranslateTo(exitX, 0, 45, Easing.CubicIn),
+                AnimatePopupHeaderAsync(0, exitX, 45, Easing.CubicIn));
         }
         catch (OperationCanceledException)
         {
