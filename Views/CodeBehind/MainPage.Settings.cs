@@ -41,6 +41,7 @@ public partial class MainPage : ContentPage
             return;
 
         _settingsTransitionRunning = true;
+        var bodyHiddenForRender = false;
         try
         {
             var rtlSign = LocalizationService.IsPersian ? -1d : 1d;
@@ -50,11 +51,11 @@ public partial class MainPage : ContentPage
             if (animate)
             {
                 await Task.WhenAll(
-                    ModalBodyScroll.FadeTo(0, 90, Easing.CubicIn),
-                    ModalButtons.FadeTo(0, 90, Easing.CubicIn),
-                    ModalBodyScroll.TranslateTo(exitX, 0, 90, Easing.CubicIn),
-                    ModalButtons.TranslateTo(exitX, 0, 90, Easing.CubicIn),
-                    AnimatePopupHeaderAsync(0, exitX, 90, Easing.CubicIn));
+                    ModalBodyScroll.FadeTo(0, 45, Easing.CubicIn),
+                    ModalButtons.FadeTo(0, 45, Easing.CubicIn),
+                    ModalBodyScroll.TranslateTo(exitX, 0, 45, Easing.CubicIn),
+                    ModalButtons.TranslateTo(exitX, 0, 45, Easing.CubicIn),
+                    AnimatePopupHeaderAsync(0, exitX, 45, Easing.CubicIn));
 
                 // The user may close the modal during the short transition.
                 if (_popupCompletionSource is null)
@@ -62,6 +63,9 @@ public partial class MainPage : ContentPage
             }
 
             beforeRender?.Invoke();
+            // Avoid measuring/rendering the old and partially rebuilt settings tree.
+            ModalBody.IsVisible = false;
+            bodyHiddenForRender = true;
             ModalBody.Children.Clear();
             ModalButtons.Children.Clear();
             ModalBody.FlowDirection = LocalizationService.CurrentFlowDirection;
@@ -93,6 +97,8 @@ public partial class MainPage : ContentPage
                     break;
             }
             _currentSettingsPage = page;
+            ModalBody.IsVisible = true;
+            bodyHiddenForRender = false;
 
             _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
             if (!animate)
@@ -111,14 +117,16 @@ public partial class MainPage : ContentPage
             ModalButtons.TranslationX = enterX;
             SetPopupHeaderVisualState(0, enterX);
             await Task.WhenAll(
-                ModalBodyScroll.FadeTo(1, 170, Easing.CubicOut),
-                ModalButtons.FadeTo(1, 170, Easing.CubicOut),
-                ModalBodyScroll.TranslateTo(0, 0, 170, Easing.CubicOut),
-                ModalButtons.TranslateTo(0, 0, 170, Easing.CubicOut),
-                AnimatePopupHeaderAsync(1, 0, 170, Easing.CubicOut));
+                ModalBodyScroll.FadeTo(1, 85, Easing.CubicOut),
+                ModalButtons.FadeTo(1, 85, Easing.CubicOut),
+                ModalBodyScroll.TranslateTo(0, 0, 85, Easing.CubicOut),
+                ModalButtons.TranslateTo(0, 0, 85, Easing.CubicOut),
+                AnimatePopupHeaderAsync(1, 0, 85, Easing.CubicOut));
         }
         finally
         {
+            if (bodyHiddenForRender)
+                ModalBody.IsVisible = true;
             _settingsTransitionRunning = false;
         }
     }
