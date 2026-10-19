@@ -170,10 +170,10 @@ public partial class MainPage : ContentPage
             if (animate)
             {
                 await Task.WhenAll(
-                    ModalBodyScroll.FadeTo(0, 90, Easing.CubicIn),
-                    ModalButtons.FadeTo(0, 90, Easing.CubicIn),
-                    ModalBodyScroll.TranslateTo(exitX, 0, 90, Easing.CubicIn),
-                    ModalButtons.TranslateTo(exitX, 0, 90, Easing.CubicIn),
+                    ModalBodyScroll.FadeToAsync(0, 90, Easing.CubicIn),
+                    ModalButtons.FadeToAsync(0, 90, Easing.CubicIn),
+                    ModalBodyScroll.TranslateToAsync(exitX, 0, 90, Easing.CubicIn),
+                    ModalButtons.TranslateToAsync(exitX, 0, 90, Easing.CubicIn),
                     AnimatePopupHeaderAsync(0, exitX, 90, Easing.CubicIn));
 
                 // The user may close the modal during the short transition.
@@ -260,10 +260,10 @@ public partial class MainPage : ContentPage
             ModalButtons.TranslationX = enterX;
             SetPopupHeaderVisualState(0, enterX);
             await Task.WhenAll(
-                ModalBodyScroll.FadeTo(1, 170, Easing.CubicOut),
-                ModalButtons.FadeTo(1, 170, Easing.CubicOut),
-                ModalBodyScroll.TranslateTo(0, 0, 170, Easing.CubicOut),
-                ModalButtons.TranslateTo(0, 0, 170, Easing.CubicOut),
+                ModalBodyScroll.FadeToAsync(1, 170, Easing.CubicOut),
+                ModalButtons.FadeToAsync(1, 170, Easing.CubicOut),
+                ModalBodyScroll.TranslateToAsync(0, 0, 170, Easing.CubicOut),
+                ModalButtons.TranslateToAsync(0, 0, 170, Easing.CubicOut),
                 AnimatePopupHeaderAsync(1, 0, 170, Easing.CubicOut));
         }
         finally
@@ -508,9 +508,9 @@ public partial class MainPage : ContentPage
             // followed a long multi-stage animation and also refreshed every task row,
             // which caused a noticeable pause when switching from dark to light.
             await Task.WhenAll(
-                thumb.TranslateTo(isDark ? thumbTravel : 0, 0, 125, Easing.CubicOut),
-                thumb.ScaleTo(0.97, 55, Easing.CubicOut));
-            await thumb.ScaleTo(1, 40, Easing.CubicOut);
+                thumb.TranslateToAsync(isDark ? thumbTravel : 0, 0, 125, Easing.CubicOut),
+                thumb.ScaleToAsync(0.97, 55, Easing.CubicOut));
+            await thumb.ScaleToAsync(1, 40, Easing.CubicOut);
 
             // Let the final thumb position paint before switching AppTheme. MAUI can
             // invalidate many AppThemeBindings at once, especially on dark-to-light

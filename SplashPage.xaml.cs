@@ -67,25 +67,25 @@ public partial class SplashPage : ContentPage
         try
         {
             await Task.WhenAll(
-                LogoBadge.FadeTo(1, 260, Easing.CubicOut),
-                LogoBadge.ScaleTo(1, 360, Easing.SpringOut),
-                LogoHalo.FadeTo(1, 360, Easing.CubicOut));
+                LogoBadge.FadeToAsync(1, 260, Easing.CubicOut),
+                LogoBadge.ScaleToAsync(1, 360, Easing.SpringOut),
+                LogoHalo.FadeToAsync(1, 360, Easing.CubicOut));
             await Task.WhenAll(
-                BrandLabel.FadeTo(1, 300, Easing.CubicOut),
-                BrandLabel.TranslateTo(0, 0, 300, Easing.CubicOut),
-                AccentPill.FadeTo(1, 300, Easing.CubicOut));
+                BrandLabel.FadeToAsync(1, 300, Easing.CubicOut),
+                BrandLabel.TranslateToAsync(0, 0, 300, Easing.CubicOut),
+                AccentPill.FadeToAsync(1, 300, Easing.CubicOut));
 
             await Task.WhenAll(
-                TaglineLabel.FadeTo(1, 370, Easing.CubicOut),
-                TaglineLabel.TranslateTo(0, 0, 370, Easing.CubicOut),
-                FooterLabel.FadeTo(1, 360, Easing.CubicOut),
-                VersionLabel.FadeTo(1, 360, Easing.CubicOut));
+                TaglineLabel.FadeToAsync(1, 370, Easing.CubicOut),
+                TaglineLabel.TranslateToAsync(0, 0, 370, Easing.CubicOut),
+                FooterLabel.FadeToAsync(1, 360, Easing.CubicOut),
+                VersionLabel.FadeToAsync(1, 360, Easing.CubicOut));
 
             // Build the main page while the branded splash is still visible. Its XAML,
             // view model and local task JSON are prepared before the transition, eliminating
             // the expensive page-construction gap that used to show a black screen.
             var mainPagePreparation = PrepareMainPageAsync(_decorationAnimationCts.Token);
-            await ProgressFill.ScaleXTo(1, 850, Easing.CubicOut);
+            await ProgressFill.ScaleXToAsync(1, 850, Easing.CubicOut);
             await Task.Delay(3500, _decorationAnimationCts.Token);
             await mainPagePreparation;
 
@@ -262,12 +262,12 @@ public partial class SplashPage : ContentPage
                 if (reverse)
                 {
                     element.Rotation = 360;
-                    await element.RotateTo(0, duration, Easing.Linear);
+                    await element.RotateToAsync(0, duration, Easing.Linear);
                 }
                 else
                 {
                     element.Rotation = 0;
-                    await element.RotateTo(360, duration, Easing.Linear);
+                    await element.RotateToAsync(360, duration, Easing.Linear);
                 }
             }
         }
@@ -285,8 +285,8 @@ public partial class SplashPage : ContentPage
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await element.FadeTo(highOpacity, duration, Easing.SinInOut);
-                await element.FadeTo(lowOpacity, duration, Easing.SinInOut);
+                await element.FadeToAsync(highOpacity, duration, Easing.SinInOut);
+                await element.FadeToAsync(lowOpacity, duration, Easing.SinInOut);
             }
         }
         catch (OperationCanceledException) { }
