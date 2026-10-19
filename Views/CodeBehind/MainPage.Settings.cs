@@ -37,12 +37,63 @@ public partial class MainPage : ContentPage
     // the Background button wait for preferences and slideshow-file validation.
     private Task<WallpaperBackgroundSettingsSnapshot>? _backgroundSettingsSnapshotPrefetchTask;
 
+    // Build dynamic popup/page trees while detached, then attach each root once. This avoids
+    // repeated native measure/layout passes as dozens of child controls are appended.
+    private VerticalStackLayout? _stagedModalBodyRoot;
+    private VerticalStackLayout? _stagedModalButtonsRoot;
+    private bool _deferredPopupPresentation;
+    // Prevent caching a temporary background-loading shell as if it were a real settings page.
+    private bool _settingsTransientLoadingVisible;
+
+    private void BeginStagedModalContentBuild()
+    {
+        _stagedModalBodyRoot ??= new VerticalStackLayout
+        {
+            Spacing = 8,
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        };
+        _stagedModalButtonsRoot ??= new VerticalStackLayout
+        {
+            Spacing = 8,
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        };
+    }
+
+    private void DiscardStagedModalContentBuild()
+    {
+        _stagedModalBodyRoot = null;
+        _stagedModalButtonsRoot = null;
+    }
+
+    private void CommitStagedModalContentBuild()
+    {
+        if (_stagedModalBodyRoot is { } bodyRoot)
+            ModalBodyHost.Content = bodyRoot;
+        if (_stagedModalButtonsRoot is { } buttonsRoot)
+            ModalButtonsHost.Content = buttonsRoot;
+
+        DiscardStagedModalContentBuild();
+
+        if (!_deferredPopupPresentation)
+            return;
+
+        _deferredPopupPresentation = false;
+        ModalOverlay.Opacity = 0;
+        ModalCard.Scale = 0.94;
+        ModalOverlay.IsVisible = true;
+        _ = ModalOverlay.FadeToAsync(1, 160, Easing.CubicOut);
+        _ = ModalCard.ScaleToAsync(1, 180, Easing.CubicOut);
+    }
+
     // The roots are created lazily because a popup may be closed and detached entirely.
     // Keeping the historic property names avoids changing every render helper.
     private VerticalStackLayout ModalBody
     {
         get
         {
+            if (_stagedModalBodyRoot is { } stagedBody)
+                return stagedBody;
+
             if (ModalBodyHost.Content is VerticalStackLayout body)
                 return body;
 
@@ -60,6 +111,9 @@ public partial class MainPage : ContentPage
     {
         get
         {
+            if (_stagedModalButtonsRoot is { } stagedButtons)
+                return stagedButtons;
+
             if (ModalButtonsHost.Content is VerticalStackLayout footer)
                 return footer;
 
@@ -138,15 +192,28 @@ public partial class MainPage : ContentPage
         var completion = BeginPopup(
             "Settings",
             "Manage your app theme, language, custom wallpaper and app information.",
-            "settings");
+            "settings",
+            deferPresentationUntilReady: true);
 
-        // Read the inexpensive settings snapshot off-thread while the user views Settings.
-        // This removes preference/JSON/path checks from the Background-page transition.
-        _backgroundSettingsSnapshotPrefetchTask = _viewModel.Settings is { } settingsToPrime
-            ? CreateBackgroundSettingsSnapshotTask(settingsToPrime)
-            : null;
+        var settingsToPrime = _viewModel.Settings;
+        _backgroundSettingsSnapshotPrefetchTask = null;
 
+        // Let the Settings view commit and paint before starting filesystem/JSON work. The
+        // snapshot is still prefetched during idle time, but no longer competes with first paint.
         await NavigateSettingsPageAsync("Settings", animate: false);
+        if (ReferenceEquals(_popupCompletionSource, completion))
+        {
+            await Task.Delay(100);
+            if (ReferenceEquals(_popupCompletionSource, completion) &&
+                !_settingsTransitionRunning &&
+                string.Equals(_currentSettingsPage, "Settings", StringComparison.Ordinal) &&
+                _backgroundSettingsSnapshotPrefetchTask is null &&
+                settingsToPrime is not null)
+            {
+                _backgroundSettingsSnapshotPrefetchTask = CreateBackgroundSettingsSnapshotTask(settingsToPrime);
+            }
+        }
+
         await completion.Task;
         _backgroundSettingsSnapshotPrefetchTask = null;
         _settingsFlowActive = false;
@@ -163,9 +230,10 @@ public partial class MainPage : ContentPage
         if (_popupCompletionSource is null || _settingsTransitionRunning)
             return;
 
-        // A no-animation refresh is used after state mutations. Never reuse the page being
-        // refreshed, and refresh the Settings summary after background state changes.
-        if (!animate)
+        // Non-animated Settings is also used for the initial/reopen path. Keep its warm tree
+        // unless the caller explicitly invalidated it (theme/language changes already do so).
+        // Background refreshes after data mutations still rebuild the target page.
+        if (!animate && !string.Equals(page, "Settings", StringComparison.Ordinal))
         {
             InvalidateSettingsPageVisualCache(page);
             if (string.Equals(page, "Background image", StringComparison.Ordinal))
@@ -199,11 +267,24 @@ public partial class MainPage : ContentPage
 
         try
         {
+            var needsFreshBackgroundPage =
+                string.Equals(page, "Background image", StringComparison.Ordinal) &&
+                !_settingsPageVisualCache.ContainsKey(page) &&
+                beforeRender is null;
+
+            // For an animated first visit, move to a purposeful loading surface immediately.
+            // Build the real page off-tree while the loading surface is visible, then swap roots
+            // once. This avoids both a long frozen old page and the empty gray modal.
+            if (needsFreshBackgroundPage && animate)
+            {
+                await NavigateFreshBackgroundPageWithLoadingSurfaceAsync(
+                    reverse, cacheCurrentPage, backgroundSnapshotTask);
+                return;
+            }
+
             WallpaperBackgroundSettingsSnapshot? preparedBackgroundSnapshot = null;
             if (backgroundSnapshotTask is not null)
             {
-                // Crucial: do not fade/detach the current view while metadata is still loading.
-                // The former order produced the empty gray modal shown in the user's screenshot.
                 try
                 {
                     preparedBackgroundSnapshot = await backgroundSnapshotTask;
@@ -215,6 +296,21 @@ public partial class MainPage : ContentPage
 
                 if (_popupCompletionSource is null)
                     return;
+            }
+
+            // For explicit no-animation refreshes, keep the currently visible page in place
+            // until the detached replacement tree has been populated.
+            var backgroundPagePrebuilt = false;
+            if (needsFreshBackgroundPage)
+            {
+                BeginStagedModalContentBuild();
+                await RenderWallpaperBackgroundSettingsAsync(preparedBackgroundSnapshot);
+                if (_popupCompletionSource is null)
+                {
+                    DiscardStagedModalContentBuild();
+                    return;
+                }
+                backgroundPagePrebuilt = true;
             }
 
             var rtlSign = LocalizationService.IsPersian ? -1d : 1d;
@@ -253,13 +349,18 @@ public partial class MainPage : ContentPage
             var restoredFromCache = TryRestoreSettingsPageVisuals(page);
             if (restoredFromCache)
             {
+                // The cached tree is already attached by TryRestore; discard any empty staging
+                // roots left by an initial deferred popup open.
+                DiscardStagedModalContentBuild();
                 ModalBody.FlowDirection = LocalizationService.CurrentFlowDirection;
                 ModalButtons.FlowDirection = LocalizationService.CurrentFlowDirection;
             }
             else
             {
+                BeginStagedModalContentBuild();
                 ModalBody.FlowDirection = LocalizationService.CurrentFlowDirection;
                 ModalButtons.FlowDirection = LocalizationService.CurrentFlowDirection;
+                if (!backgroundPagePrebuilt)
                 switch (page)
                 {
                     case "Settings":
@@ -287,6 +388,11 @@ public partial class MainPage : ContentPage
                         break;
                 }
             }
+
+            // Attach a complete page tree once rather than invalidating the live native layout
+            // for each child that the render helpers add. This also presents a deferred first
+            // popup only after its actual contents exist.
+            CommitStagedModalContentBuild();
 
             _currentSettingsPage = page;
             _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
@@ -344,6 +450,171 @@ public partial class MainPage : ContentPage
             _settingsTransitionRunning = false;
         }
     }
+    private async Task NavigateFreshBackgroundPageWithLoadingSurfaceAsync(
+        bool reverse,
+        bool cacheCurrentPage,
+        Task<WallpaperBackgroundSettingsSnapshot>? snapshotTask)
+    {
+#if DEBUG
+        var loadStarted = Stopwatch.GetTimestamp();
+#endif
+        var rtlSign = LocalizationService.IsPersian ? -1d : 1d;
+        var exitX = (reverse ? 1d : -1d) * rtlSign * 18d;
+        var enterX = -exitX;
+
+        await Task.WhenAll(
+            ModalBodyScroll.FadeToAsync(0, 90, Easing.CubicIn),
+            ModalButtons.FadeToAsync(0, 90, Easing.CubicIn),
+            ModalBodyScroll.TranslateToAsync(exitX, 0, 90, Easing.CubicIn),
+            ModalButtons.TranslateToAsync(exitX, 0, 90, Easing.CubicIn),
+            AnimatePopupHeaderAsync(0, exitX, 90, Easing.CubicIn));
+
+        if (_popupCompletionSource is null)
+            return;
+
+        if (cacheCurrentPage)
+            CacheCurrentSettingsPageVisuals();
+        else
+        {
+            ModalBodyHost.Content = null;
+            ModalButtonsHost.Content = null;
+        }
+
+        ModalBodyHost.Content = null;
+        ModalButtonsHost.Content = null;
+        ConfigureSettingsPopupHeader("Background image");
+        _currentSettingsPage = "Background image";
+        _settingsTransientLoadingVisible = true;
+
+        // This is a real, themed loading surface rather than an empty placeholder. It paints
+        // quickly and gives the UI thread a chance to render while the background content builds.
+        var loadingBody = new VerticalStackLayout
+        {
+            Spacing = 14,
+            Padding = new Thickness(12, 24),
+            MinimumHeightRequest = 250,
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Center,
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        };
+        loadingBody.Children.Add(new ActivityIndicator
+        {
+            IsRunning = true,
+            Color = Color.FromArgb("#8875E8"),
+            WidthRequest = 30,
+            HeightRequest = 30,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
+        });
+        loadingBody.Children.Add(new Label
+        {
+            Text = LocalizedDisplayText("Preparing background options..."),
+            FontSize = 12,
+            TextColor = PopupColor("#6F7589", "#ADB2C8"),
+            HorizontalTextAlignment = TextAlignment.Center,
+            VerticalTextAlignment = TextAlignment.Center,
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        });
+        var loadingFooter = new VerticalStackLayout { Spacing = 8, FlowDirection = LocalizationService.CurrentFlowDirection };
+        ModalBodyHost.Content = loadingBody;
+        ModalButtonsHost.Content = loadingFooter;
+
+        ModalBodyScroll.Opacity = 0;
+        ModalButtons.Opacity = 0;
+        ModalBodyScroll.TranslationX = enterX;
+        ModalButtons.TranslationX = enterX;
+        SetPopupHeaderVisualState(0, enterX);
+        await Task.WhenAll(
+            ModalBodyScroll.FadeToAsync(1, 170, Easing.CubicOut),
+            ModalButtons.FadeToAsync(1, 170, Easing.CubicOut),
+            ModalBodyScroll.TranslateToAsync(0, 0, 170, Easing.CubicOut),
+            ModalButtons.TranslateToAsync(0, 0, 170, Easing.CubicOut),
+            AnimatePopupHeaderAsync(1, 0, 170, Easing.CubicOut));
+
+        if (_popupCompletionSource is null)
+            return;
+
+        // Yield after the loader animation so Android can actually paint it before parsing the
+        // snapshot and constructing all preset/photo controls.
+        await Task.Yield();
+        WallpaperBackgroundSettingsSnapshot? snapshot = null;
+        if (snapshotTask is not null)
+        {
+            try
+            {
+                snapshot = await snapshotTask;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Locksy.Perf] Background snapshot failed after loader display: {ex}");
+            }
+        }
+
+        if (_popupCompletionSource is null)
+            return;
+
+        try
+        {
+            BeginStagedModalContentBuild();
+            await RenderWallpaperBackgroundSettingsAsync(snapshot);
+            if (_popupCompletionSource is null)
+            {
+                DiscardStagedModalContentBuild();
+                return;
+            }
+
+            await Task.WhenAll(
+                ModalBodyScroll.FadeToAsync(0, 75, Easing.CubicIn),
+                ModalButtons.FadeToAsync(0, 75, Easing.CubicIn));
+
+            ModalBodyHost.Content = null;
+            ModalButtonsHost.Content = null;
+            CommitStagedModalContentBuild();
+            _settingsTransientLoadingVisible = false;
+            _currentSettingsPage = "Background image";
+            _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
+
+            ModalBodyScroll.Opacity = 0;
+            ModalButtons.Opacity = 0;
+            ModalBodyScroll.TranslationX = enterX * 0.25;
+            ModalButtons.TranslationX = enterX * 0.25;
+            await Task.WhenAll(
+                ModalBodyScroll.FadeToAsync(1, 115, Easing.CubicOut),
+                ModalButtons.FadeToAsync(1, 115, Easing.CubicOut),
+                ModalBodyScroll.TranslateToAsync(0, 0, 115, Easing.CubicOut),
+                ModalButtons.TranslateToAsync(0, 0, 115, Easing.CubicOut));
+#if DEBUG
+            Debug.WriteLine($"[Locksy.Perf] Background loading surface totalMs={Stopwatch.GetElapsedTime(loadStarted).TotalMilliseconds:F1}; items={snapshot?.SlideshowItems.Count ?? 0}; bodyViews={ModalBody.Children.Count}");
+#endif
+        }
+        catch (Exception ex)
+        {
+            DiscardStagedModalContentBuild();
+            Debug.WriteLine($"[Locksy.Perf] Background rendering failed: {ex}");
+            if (_popupCompletionSource is null)
+                return;
+
+            // If failure happened after the real tree was attached (for example during a
+            // cancellable fade), do not mutate the detached loading root or replace valid content.
+            if (!ReferenceEquals(ModalBodyHost.Content, loadingBody) || !_settingsTransientLoadingVisible)
+                return;
+
+            loadingBody.Children.Clear();
+            loadingBody.Children.Add(new Label
+            {
+                Text = LocalizedDisplayText("Background options could not be loaded."),
+                FontSize = 12,
+                TextColor = PopupColor("#D45C72", "#FF9EAF"),
+                HorizontalTextAlignment = TextAlignment.Center,
+                VerticalTextAlignment = TextAlignment.Center
+            });
+            loadingFooter.Children.Clear();
+            loadingFooter.Children.Add(CreatePopupAction(
+                "Retry", null, primary: true, destructive: false,
+                customAction: () => _ = NavigateSettingsPageAsync("Background image", animate: true, cacheCurrentPage: false)));
+        }
+    }
+
     private void ConfigureSettingsPopupHeader(string page)
     {
         var title = page switch
