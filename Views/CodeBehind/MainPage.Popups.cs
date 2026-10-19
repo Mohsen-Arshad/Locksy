@@ -137,13 +137,24 @@ public partial class MainPage : ContentPage
         _ => "icon_info.svg"
     };
 
-    private TaskCompletionSource<string?> BeginPopup(string title, string message, string icon = "info")
+    private TaskCompletionSource<string?> BeginPopup(
+        string title,
+        string message,
+        string icon = "info",
+        bool deferPresentationUntilReady = false)
     {
         // A nested action can finish its result while keeping the modal surface open.
         // The next popup then replaces the content and animates inside the same card.
         var reuseVisibleModal = ModalOverlay.IsVisible && _popupCompletionSource is null;
         if (_popupCompletionSource is not null)
             CompletePopup(null);
+
+        var deferFirstPresentation = deferPresentationUntilReady && !reuseVisibleModal;
+        if (deferFirstPresentation)
+            BeginStagedModalContentBuild();
+        else
+            DiscardStagedModalContentBuild();
+        _deferredPopupPresentation = deferFirstPresentation;
 
         var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
         _popupCompletionSource = completion;
@@ -197,7 +208,7 @@ public partial class MainPage : ContentPage
             ModalOverlay.IsVisible = true;
             _ = AnimatePopupContentInAsync();
         }
-        else
+        else if (!deferFirstPresentation)
         {
             ModalOverlay.Opacity = 0;
             ModalCard.Scale = 0.94;
@@ -205,6 +216,8 @@ public partial class MainPage : ContentPage
             _ = ModalOverlay.FadeToAsync(1, 160, Easing.CubicOut);
             _ = ModalCard.ScaleToAsync(1, 180, Easing.CubicOut);
         }
+        // For an expensive dynamic view, the caller builds its body/footer in detached roots
+        // and CommitStagedModalContentBuild reveals the popup only after the roots are ready.
         return completion;
     }
     private async Task AnimatePopupContentInAsync()
@@ -596,10 +609,25 @@ public partial class MainPage : ContentPage
         ModalBodyScroll.TranslationX = 0;
         ModalButtons.TranslationX = 0;
         SetPopupHeaderVisualState(1, 0);
+        // Keep the active settings page detached in the bounded page cache. The current
+        // SettingsViewModel invalidation hooks evict stale pages when theme, language or
+        // background data changes, so reopening Settings does not need to rebuild every view.
+        if (_settingsFlowActive &&
+            !_settingsTransientLoadingVisible &&
+            ModalBodyHost.Content is VerticalStackLayout bodyRoot &&
+            ModalButtonsHost.Content is VerticalStackLayout footerRoot &&
+            (bodyRoot.Children.Count > 0 || footerRoot.Children.Count > 0))
+        {
+            _settingsPageVisualCache[_currentSettingsPage] =
+                new SettingsPageVisualSnapshot(bodyRoot, footerRoot);
+        }
+
         // Detach whole page roots instead of clearing child collections one item at a time.
         ModalBodyHost.Content = null;
         ModalButtonsHost.Content = null;
-        ClearSettingsPageVisualCache();
+        DiscardStagedModalContentBuild();
+        _deferredPopupPresentation = false;
+        _settingsTransientLoadingVisible = false;
         var completion = _popupCompletionSource;
         _popupCompletionSource = null;
         completion?.TrySetResult(result);

@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+using System.Globalization;
+using System.Diagnostics;
 using Locksy.Helpers;
 using Locksy.Models;
 using Locksy.Platforms.Android;
@@ -119,6 +120,9 @@ public partial class MainPage : ContentPage
     }
     private async void NewTaskSettingsButton_Clicked(object? sender, EventArgs e)
     {
+#if DEBUG
+        var popupBuildStarted = Stopwatch.GetTimestamp();
+#endif
         var initialTitle = (_viewModel.NewTaskText ?? string.Empty).Trim();
         var selectedPaletteKey = _viewModel.NewTaskSettings.HasPendingSettings
             ? _viewModel.NewTaskSettings.PaletteKey
@@ -137,6 +141,45 @@ public partial class MainPage : ContentPage
             "options");
         _popupPreferredWidth = 370d;
         ApplyResponsivePopupBounds();
+
+        // Paint a compact placeholder immediately instead of keeping the modal hidden while
+        // the full palette/date-picker control tree is constructed. The real body is staged and
+        // attached once, so the visible ScrollView does not re-measure for each color card.
+        ModalBody.Children.Add(new VerticalStackLayout
+        {
+            Spacing = 12,
+            Padding = new Thickness(12, 24),
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Center,
+            Children =
+            {
+                new ActivityIndicator
+                {
+                    IsRunning = true,
+                    Color = Color.FromArgb("#8875E8"),
+                    WidthRequest = 28,
+                    HeightRequest = 28,
+                    HorizontalOptions = LayoutOptions.Center
+                },
+                new Label
+                {
+                    Text = LocalizationService.Translate("Preparing reminder settings..."),
+                    FontSize = 12,
+                    TextColor = PopupColor("#6F7589", "#ADB2C8"),
+                    HorizontalTextAlignment = TextAlignment.Center
+                }
+            }
+        });
+        ModalButtons.Children.Add(CreatePopupAction(
+            "Cancel", null, primary: false, destructive: false, customAction: () => CompletePopup(null)));
+
+        BeginStagedModalContentBuild();
+        await Task.Yield();
+        if (!ReferenceEquals(_popupCompletionSource, completion))
+        {
+            DiscardStagedModalContentBuild();
+            return;
+        }
 
         ModalBody.Children.Add(new Label
         {
@@ -318,6 +361,16 @@ public partial class MainPage : ContentPage
             colorLabels[colorKey] = label;
             colorSwatches[colorKey] = swatch;
             colorGrid.Add(border, i % 3, i / 3);
+
+            if ((i + 1) % 6 == 0 && i + 1 < TodoPalette.Options.Count)
+            {
+                await Task.Yield();
+                if (!ReferenceEquals(_popupCompletionSource, completion))
+                {
+                    DiscardStagedModalContentBuild();
+                    return;
+                }
+            }
         }
         ModalBody.Children.Add(paletteSelector);
         ModalBody.Children.Add(colorGrid);
@@ -460,6 +513,18 @@ public partial class MainPage : ContentPage
         actions.Add(addAction, 0, 1);
         Grid.SetColumnSpan(addAction, 2);
         ModalButtons.Children.Add(actions);
+
+        // All reminder/palette/date controls were constructed off-tree. Attach them once so
+        // Android does not run repeated native measure/layout passes while the modal animates.
+        if (!ReferenceEquals(_popupCompletionSource, completion))
+        {
+            DiscardStagedModalContentBuild();
+            return;
+        }
+        CommitStagedModalContentBuild();
+#if DEBUG
+        Debug.WriteLine($"[Locksy.Perf] New reminder popup buildMs={Stopwatch.GetElapsedTime(popupBuildStarted).TotalMilliseconds:F1}; bodyViews={ModalBody.Children.Count}; colorOptions={TodoPalette.Options.Count}; palettes={TodoPalette.Palettes.Count}");
+#endif
 
         var result = await completion.Task;
         _popupPreferredWidth = 380d;
