@@ -1,10 +1,23 @@
+using Locksy.Models;
 using Microsoft.Maui.Storage;
 
 namespace Locksy.Services.Abstractions;
 
 public interface ICustomWallpaperBackgroundManager
 {
-    string? GetExistingPath();
+    WallpaperBackgroundMode GetMode();
+    string GetSelectedPresetKey();
+    string? GetCurrentPreviewImagePath();
+    string? GetCurrentPreviewPresetKey();
+    IReadOnlyList<WallpaperSlideshowItem> GetSlideshowItems();
+    int GetSlideshowIntervalMinutes();
     Task SaveAsync(FileResult file);
-    void Clear();
+    Task<IReadOnlyList<WallpaperSlideshowItem>> AddSlideshowImagesAsync(IEnumerable<FileResult> images);
+    void SelectDefault();
+    bool SelectPreset(string key);
+    bool AddPresetToSlideshow(string key);
+    bool SelectSlideshow();
+    bool RemoveSlideshowItem(string id);
+    void SetSlideshowIntervalMinutes(int minutes);
+    void ClearSingleImage();
 }

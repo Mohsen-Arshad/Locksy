@@ -133,9 +133,7 @@ public partial class MainPage : ContentPage
         {
             "Settings" => "Manage your app theme, language, custom wallpaper and app information.",
             "Language" => "Choose your preferred language. English is the default.",
-            "Background image" => _viewModel.Settings?.HasCustomBackground == true
-                ? "A custom background is currently active."
-                : "The default Locksy background is currently active.",
+            "Background image" => _viewModel.Settings?.BackgroundSummary ?? "The default Locksy background is currently active.",
             "About" => "Locksy keeps important tasks visible directly on your Android lock screen. Customize task colors, reminders, theme, layout and background image. Your task list is stored locally on this device.",
             _ => string.Empty
         };
@@ -172,7 +170,10 @@ public partial class MainPage : ContentPage
         else
         {
             ModalIconLabel.Text = icon;
-            ModalIconLabel.FontSize = icon == "Aa" ? 17 : 22;
+            ModalIconLabel.FontSize = icon == "Aa" ? 20 : 22;
+            ModalIconLabel.FontAttributes = FontAttributes.Bold;
+            ModalIconLabel.HorizontalTextAlignment = TextAlignment.Center;
+            ModalIconLabel.VerticalTextAlignment = TextAlignment.Center;
         }
     }
     private void RenderSettingsHome()
@@ -182,9 +183,8 @@ public partial class MainPage : ContentPage
         AddSettingsOption("Language", "Choose English or Persian for the app.", "Aa",
             () => NavigateSettingsPageAsync("Language"));
 
-        var backgroundSubtitle = _viewModel.Settings?.HasCustomBackground == true
-            ? "A custom background is currently active."
-            : "The default Locksy background is currently active.";
+        var backgroundSubtitle = _viewModel.Settings?.BackgroundSummary
+            ?? "The default Locksy background is currently active.";
         AddSettingsOption("Background image", backgroundSubtitle, "▧",
             () => NavigateSettingsPageAsync("Background image"));
         AddSettingsOption("About", "App information and project source code.", "!",
@@ -275,13 +275,10 @@ public partial class MainPage : ContentPage
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(thumbSize / 2) },
             Shadow = new Shadow
             {
-                Brush = new SolidColorBrush(
-                    isDark
-                        ? Colors.Transparent
-                        : Color.FromArgb("#6551C7")),
-                Offset = isDark
-                    ? Point.Zero
-                    : new Point(0, 3),
+                Brush = new SolidColorBrush(isDark
+                    ? Colors.Transparent
+                    : Color.FromArgb("#6551C7")),
+                Offset = isDark ? Point.Zero : new Point(0, 3),
                 Radius = isDark ? 0 : 6,
                 Opacity = isDark ? 0f : 0.42f
             },
@@ -427,11 +424,432 @@ public partial class MainPage : ContentPage
     }
     private void RenderWallpaperBackgroundSettings()
     {
-        AddSettingsOption("Choose image", "Select a personal image from this device.", "▧",
-            PickCustomBackgroundWithinSettingsAsync);
-        AddSettingsOption("Remove custom background", "Restore the built-in Locksy background.", "×",
-            RemoveCustomBackgroundWithinSettingsAsync);
+        var settings = _viewModel.Settings;
+        if (settings is null)
+        {
+            BuildSettingsFooter(isHome: false);
+            return;
+        }
+
+        AddSettingsOption("Default Locksy background", "Use the original Locksy gradient and grid.", "◉",
+            async () =>
+            {
+                settings.SelectDefaultBackground();
+                await NavigateSettingsPageAsync("Background image", animate: false);
+            }, isSelected: settings.BackgroundMode == WallpaperBackgroundMode.Default);
+        if (settings.BackgroundMode == WallpaperBackgroundMode.Default)
+            AddCurrentWallpaperBackgroundPreview(settings);
+
+        AddSettingsOption("Choose one photo", "Use one photo and crop it to fill the lock screen.", "▧",
+            PickCustomBackgroundWithinSettingsAsync,
+            isSelected: settings.BackgroundMode == WallpaperBackgroundMode.CustomImage);
+        if (settings.BackgroundMode == WallpaperBackgroundMode.CustomImage)
+            AddCurrentWallpaperBackgroundPreview(settings);
+
+        ModalBody.Children.Add(CreateSettingsSectionLabel("Built-in backgrounds"));
+        foreach (var preset in settings.BackgroundPresets)
+            AddWallpaperPresetCard(preset, settings.BackgroundMode == WallpaperBackgroundMode.Preset &&
+                                           string.Equals(settings.SelectedPresetKey, preset.Key, StringComparison.OrdinalIgnoreCase));
+        if (settings.BackgroundMode == WallpaperBackgroundMode.Preset)
+            AddCurrentWallpaperBackgroundPreview(settings);
+
+        ModalBody.Children.Add(CreateSettingsSectionLabel("Slideshow"));
+        AddSettingsOption("Choose multiple photos", "Add several photos from your device to the slideshow.", "▧",
+            ChooseSlideshowImagesWithinSettingsAsync);
+        AddSettingsOption("Use slideshow", "Cycle through your selected photos and built-in backgrounds.", "↻",
+            async () =>
+            {
+                if (settings.ActivateSlideshow())
+                {
+                    await NavigateSettingsPageAsync("Background image", animate: false);
+                    return;
+                }
+
+                SetModalMessageText(LocalizationService.Translate("Add at least two backgrounds to start a slideshow."));
+                ModalMessage.TextColor = Color.FromArgb("#D45C72");
+                ModalMessage.IsVisible = true;
+            }, isSelected: settings.IsSlideshowSelected);
+        if (settings.IsSlideshowSelected)
+            AddCurrentWallpaperBackgroundPreview(settings);
+
+        AddSlideshowIntervalPicker(settings);
+        AddSlideshowItems(settings);
         BuildSettingsFooter(isHome: false);
+    }
+
+    private Label CreateSettingsSectionLabel(string text) => new()
+    {
+        Text = LocalizedDisplayText(text),
+        FontSize = 12,
+        FontAttributes = FontAttributes.Bold,
+        TextColor = PopupColor("#77718D", "#B5ADC9"),
+        Margin = new Thickness(2, 8, 2, 1),
+        FlowDirection = LocalizationService.CurrentFlowDirection
+    };
+
+    private void AddCurrentWallpaperBackgroundPreview(SettingsViewModel settings)
+    {
+        var modeTitle = settings.BackgroundMode switch
+        {
+            WallpaperBackgroundMode.Preset => WallpaperBackgroundCatalog.Find(settings.SelectedPresetKey)?.Title ?? "Built-in background",
+            WallpaperBackgroundMode.CustomImage => "Custom photo",
+            WallpaperBackgroundMode.Slideshow => "Slideshow",
+            _ => "Default Locksy background"
+        };
+
+        var previewFrame = new Border
+        {
+            HeightRequest = 104,
+            Padding = 0,
+            Stroke = new SolidColorBrush(PopupColor("#CFC5F7", "#554A75")),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(15) },
+            Background = CreateBackgroundPreviewBrush(settings.CurrentBackgroundPresetKey),
+            HorizontalOptions = LayoutOptions.Fill
+        };
+
+        if (!string.IsNullOrWhiteSpace(settings.CurrentBackgroundPreviewPath) &&
+            File.Exists(settings.CurrentBackgroundPreviewPath))
+        {
+            previewFrame.Content = new Image
+            {
+                Source = ImageSource.FromFile(settings.CurrentBackgroundPreviewPath),
+                Aspect = Aspect.AspectFill,
+                HorizontalOptions = LayoutOptions.Fill,
+                VerticalOptions = LayoutOptions.Fill
+            };
+        }
+        else
+        {
+            var decoration = new Grid { InputTransparent = true };
+            decoration.Children.Add(new Ellipse
+            {
+                WidthRequest = 82,
+                HeightRequest = 82,
+                Stroke = new SolidColorBrush(Color.FromArgb("#70FFFFFF")),
+                StrokeThickness = 2,
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.Start,
+                Margin = new Thickness(0, -20, 16, 0)
+            });
+            decoration.Children.Add(new Label
+            {
+                Text = "LOCKSY",
+                FontSize = 12,
+                FontAttributes = FontAttributes.Bold,
+                CharacterSpacing = 3,
+                TextColor = Color.FromArgb("#EFFFFFFF"),
+                HorizontalTextAlignment = TextAlignment.Center,
+                VerticalTextAlignment = TextAlignment.Center
+            });
+            previewFrame.Content = decoration;
+        }
+
+        var summary = new Label
+        {
+            Text = LocalizedDisplayText(modeTitle),
+            FontSize = 12,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#3F4559", "#E5E7F5"),
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        };
+        var caption = new Label
+        {
+            Text = LocalizedDisplayText("Current background preview · images fill the screen with center-crop."),
+            FontSize = 10.5,
+            TextColor = PopupColor("#7E8599", "#9FA5BC"),
+            FlowDirection = LocalizationService.CurrentFlowDirection,
+            LineBreakMode = LineBreakMode.WordWrap
+        };
+        ModalBody.Children.Add(new VerticalStackLayout
+        {
+            Spacing = 7,
+            Margin = new Thickness(0, 0, 0, 5),
+            Children = { summary, previewFrame, caption }
+        });
+    }
+
+    private static Brush CreateBackgroundPreviewBrush(string? presetKey)
+    {
+        var preset = WallpaperBackgroundCatalog.Find(presetKey);
+        var top = Color.FromArgb(preset?.TopColor ?? "#0C0D16");
+        var bottom = Color.FromArgb(preset?.BottomColor ?? "#1F1430");
+        return new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(1, 1),
+            GradientStops =
+            {
+                new GradientStop(top, 0f),
+                new GradientStop(bottom, 1f)
+            }
+        };
+    }
+
+    private void AddWallpaperPresetCard(WallpaperBackgroundPreset preset, bool isSelected)
+    {
+        var row = new Grid
+        {
+            ColumnSpacing = 9,
+            Padding = new Thickness(9, 8),
+            VerticalOptions = LayoutOptions.Center,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(new GridLength(48)),
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(new GridLength(36))
+            }
+        };
+        row.Add(new Border
+        {
+            WidthRequest = 44,
+            HeightRequest = 44,
+            Background = CreateBackgroundPreviewBrush(preset.Key),
+            Stroke = new SolidColorBrush(Color.FromArgb(preset.AccentColor)),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+            VerticalOptions = LayoutOptions.Center
+        }, 0, 0);
+
+        var details = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center };
+        details.Children.Add(new Label
+        {
+            Text = LocalizedDisplayText(preset.Title),
+            FontSize = 12.5,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#3F4559", "#E5E7F5"),
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        });
+        details.Children.Add(new Label
+        {
+            Text = LocalizedDisplayText(preset.Subtitle),
+            FontSize = 10,
+            TextColor = PopupColor("#7E8599", "#9FA5BC"),
+            FlowDirection = LocalizationService.CurrentFlowDirection,
+            LineBreakMode = LineBreakMode.WordWrap
+        });
+        row.Add(details, 1, 0);
+
+        var useButton = new Button
+        {
+            Text = LocalizedDisplayText("Use"),
+            FontSize = 11,
+            FontAttributes = FontAttributes.Bold,
+            Padding = new Thickness(9, 0),
+            HeightRequest = 34,
+            MinimumWidthRequest = 54,
+            BackgroundColor = isSelected ? Color.FromArgb("#8875E8") : PopupColor("#E2E7F1", "#303042"),
+            TextColor = isSelected ? Colors.White : PopupColor("#625A78", "#E5E1F5"),
+            CornerRadius = 10,
+            VerticalOptions = LayoutOptions.Center
+        };
+        useButton.Clicked += async (_, _) =>
+        {
+            settingsPreset(preset.Key);
+            await NavigateSettingsPageAsync("Background image", animate: false);
+        };
+        row.Add(useButton, 2, 0);
+
+        var addButton = new Button
+        {
+            Text = "+",
+            FontSize = 22,
+            FontAttributes = FontAttributes.Bold,
+            Padding = 0,
+            WidthRequest = 34,
+            HeightRequest = 34,
+            BackgroundColor = PopupColor("#E2E7F1", "#303042"),
+            TextColor = Color.FromArgb("#8A76EB"),
+            CornerRadius = 10,
+            VerticalOptions = LayoutOptions.Center
+        };
+        SemanticProperties.SetDescription(addButton, LocalizationService.Translate("Add preset to slideshow"));
+        addButton.Clicked += async (_, _) =>
+        {
+            _viewModel.Settings?.AddPresetToSlideshow(preset.Key);
+            await NavigateSettingsPageAsync("Background image", animate: false);
+        };
+        row.Add(addButton, 3, 0);
+
+        ModalBody.Children.Add(new Border
+        {
+            BackgroundColor = isSelected ? PopupColor("#E9E2FF", "#332D49") : PopupColor("#F0F2F8", "#252736"),
+            Stroke = new SolidColorBrush(isSelected ? Color.FromArgb("#9C8AF0") : PopupColor("#D1D9E5", "#383A4D")),
+            StrokeThickness = isSelected ? 1.4 : 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
+            Content = row
+        });
+
+        void settingsPreset(string key) => _viewModel.Settings?.SelectPresetBackground(key);
+    }
+
+    private void AddSlideshowIntervalPicker(SettingsViewModel settings)
+    {
+        var intervals = new[] { 5, 10, 15, 30, 60 };
+        var picker = new Picker
+        {
+            Title = LocalizedDisplayText("Slideshow interval"),
+            FontSize = 13,
+            TextColor = PopupColor("#303545", "#F1F2FA"),
+            TitleColor = PopupColor("#7E8599", "#9FA5BC"),
+            BackgroundColor = Colors.Transparent,
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Center
+        };
+        foreach (var interval in intervals)
+            picker.Items.Add(LocalizedDisplayText($"Every {interval} minutes"));
+        var selectedIndex = Array.IndexOf(intervals, settings.SlideshowIntervalMinutes);
+        picker.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        picker.SelectedIndexChanged += (_, _) =>
+        {
+            if (picker.SelectedIndex >= 0 && picker.SelectedIndex < intervals.Length)
+                settings.SetSlideshowIntervalMinutes(intervals[picker.SelectedIndex]);
+        };
+        var row = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(new GridLength(150)) }, ColumnSpacing = 8 };
+        row.Add(new Label
+        {
+            Text = LocalizedDisplayText("Change every"),
+            FontSize = 12,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#626A80", "#BFC3D6"),
+            VerticalTextAlignment = TextAlignment.Center,
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        }, 0, 0);
+        row.Add(picker, 1, 0);
+        ModalBody.Children.Add(new Border
+        {
+            Padding = new Thickness(10, 3),
+            BackgroundColor = PopupColor("#E9EAF2", "#20212E"),
+            Stroke = new SolidColorBrush(PopupColor("#D1D6E3", "#38394C")),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+            Content = row
+        });
+    }
+
+    private void AddSlideshowItems(SettingsViewModel settings)
+    {
+        var items = settings.SlideshowItems;
+        ModalBody.Children.Add(new Label
+        {
+            Text = $"{LocalizedDisplayText("Slideshow items:")} {LocalizationService.LocalizeDigits($"{items.Count}/20")}",
+            FontSize = 11,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#77718D", "#B5ADC9"),
+            Margin = new Thickness(2, 4, 2, 0),
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        });
+
+        if (items.Count == 0)
+        {
+            ModalBody.Children.Add(new Label
+            {
+                Text = LocalizedDisplayText("No slideshow items yet. Add photos or use the + button on a built-in background."),
+                FontSize = 11,
+                TextColor = PopupColor("#7E8599", "#9FA5BC"),
+                LineBreakMode = LineBreakMode.WordWrap,
+                Margin = new Thickness(2, 0, 2, 4),
+                FlowDirection = LocalizationService.CurrentFlowDirection
+            });
+            return;
+        }
+
+        foreach (var item in items)
+        {
+            var row = new Grid
+            {
+                ColumnSpacing = 9,
+                Padding = new Thickness(8, 6),
+                ColumnDefinitions = { new ColumnDefinition(new GridLength(42)), new ColumnDefinition(GridLength.Star), new ColumnDefinition(new GridLength(34)) }
+            };
+            View thumbnail;
+            var preset = item.Kind == "preset" ? WallpaperBackgroundCatalog.Find(item.Key) : null;
+            if (preset is not null)
+            {
+                thumbnail = new Border
+                {
+                    WidthRequest = 38,
+                    HeightRequest = 38,
+                    Background = CreateBackgroundPreviewBrush(preset.Key),
+                    Stroke = new SolidColorBrush(Color.FromArgb(preset.AccentColor)),
+                    StrokeThickness = 1,
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+                    VerticalOptions = LayoutOptions.Center
+                };
+            }
+            else
+            {
+                thumbnail = new Border
+                {
+                    WidthRequest = 38,
+                    HeightRequest = 38,
+                    Padding = 0,
+                    Stroke = new SolidColorBrush(PopupColor("#D1D9E5", "#383A4D")),
+                    StrokeThickness = 1,
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+                    Content = new Image
+                    {
+                        Source = !string.IsNullOrWhiteSpace(item.ImagePath) ? ImageSource.FromFile(item.ImagePath) : null,
+                        Aspect = Aspect.AspectFill
+                    },
+                    VerticalOptions = LayoutOptions.Center
+                };
+            }
+            row.Add(thumbnail, 0, 0);
+            row.Add(new Label
+            {
+                Text = LocalizedDisplayText(item.DisplayName),
+                FontSize = 12,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = PopupColor("#3F4559", "#E5E7F5"),
+                VerticalTextAlignment = TextAlignment.Center,
+                LineBreakMode = LineBreakMode.TailTruncation
+            }, 1, 0);
+            var remove = new Button
+            {
+                Text = "×",
+                FontSize = 22,
+                FontAttributes = FontAttributes.Bold,
+                Padding = 0,
+                WidthRequest = 32,
+                HeightRequest = 32,
+                BackgroundColor = PopupColor("#FCE9ED", "#3A222E"),
+                TextColor = PopupColor("#A83E59", "#FFC1D0"),
+                CornerRadius = 10,
+                VerticalOptions = LayoutOptions.Center
+            };
+            remove.Clicked += async (_, _) =>
+            {
+                _viewModel.Settings?.RemoveSlideshowItem(item.Id);
+                await NavigateSettingsPageAsync("Background image", animate: false);
+            };
+            row.Add(remove, 2, 0);
+            ModalBody.Children.Add(new Border
+            {
+                BackgroundColor = PopupColor("#F0F2F8", "#252736"),
+                Stroke = new SolidColorBrush(PopupColor("#D1D9E5", "#383A4D")),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+                Content = row
+            });
+        }
+    }
+
+    private async Task ChooseSlideshowImagesWithinSettingsAsync()
+    {
+        var settings = _viewModel.Settings;
+        if (settings is null) return;
+        var result = await settings.ChooseSlideshowImagesAsync();
+        if (result.Cancelled) return;
+        if (!result.Succeeded)
+        {
+            SetModalMessageText(result.Message ?? LocalizationService.Translate("The selected images could not be saved."));
+            ModalMessage.TextColor = Color.FromArgb("#D45C72");
+            ModalMessage.IsVisible = true;
+            return;
+        }
+        await NavigateSettingsPageAsync("Background image", animate: false);
     }
     private async Task PickCustomBackgroundWithinSettingsAsync()
     {
@@ -519,14 +937,14 @@ public partial class MainPage : ContentPage
             Padding = new Thickness(10, 9),
             VerticalOptions = LayoutOptions.Fill
         };
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(38)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(44)));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(18)));
 
         var iconLabel = new Label
         {
             Text = icon,
-            FontSize = icon is "EN" or "فا" or "Aa" ? 18 : 22,
+            FontSize = 20,
             FontAttributes = FontAttributes.Bold,
             TextColor = isSelected ? Colors.White : Color.FromArgb("#8A76EB"),
             HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
@@ -534,8 +952,9 @@ public partial class MainPage : ContentPage
         };
         row.Add(new Border
         {
-            WidthRequest = 36,
-            HeightRequest = 36,
+            WidthRequest = 42,
+            HeightRequest = 42,
+            Padding = 0,
             BackgroundColor = isSelected ? Color.FromArgb("#8875E8") : PopupColor("#E2E7F1", "#2A2C3D"),
             Stroke = new SolidColorBrush(isSelected ? Color.FromArgb("#8875E8") : PopupColor("#D1D9E5", "#383A4D")),
             StrokeThickness = 1,
@@ -569,8 +988,8 @@ public partial class MainPage : ContentPage
         row.Add(new Label
         {
             Text = isSelected ? "✓" : (LocalizationService.IsPersian ? "‹" : "›"),
-            FontSize = isSelected ? 17 : 22,
-            FontAttributes = isSelected ? FontAttributes.Bold : FontAttributes.None,
+            FontSize = 22,
+            FontAttributes = FontAttributes.Bold,
             TextColor = isSelected ? Color.FromArgb("#8A76EB") : PopupColor("#A29AB7", "#9189A8"),
             HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
             VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center

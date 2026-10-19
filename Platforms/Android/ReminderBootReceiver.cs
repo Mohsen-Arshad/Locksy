@@ -11,5 +11,6 @@ public sealed class ReminderBootReceiver : BroadcastReceiver
     {
         if (context is null || intent?.Action != Intent.ActionBootCompleted) return;
         ReminderScheduler.RescheduleFromStorage(context);
+        WallpaperSlideshowAlarm.SyncAfterWallpaperApplied(context);
     }
 }

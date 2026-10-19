@@ -580,8 +580,17 @@ public partial class MainPage : ContentPage
         _wallpaperViewModel.ApplyQueuedAutoWallpaperWhenBackgroundedAsync(cancellationToken);
     private void TaskTitle_Tapped(object? sender, TappedEventArgs e)
     {
-        if (sender is Label { BindingContext: TaskItemViewModel task })
-            MainThread.BeginInvokeOnMainThread(async () => await EditTaskAsync(task));
+        if (sender is not Label { BindingContext: TaskItemViewModel task })
+            return;
+#if ANDROID
+        if (_recentLongPressTaskTaps.TryGetValue(task.Id, out var longPressAt))
+        {
+            _recentLongPressTaskTaps.Remove(task.Id);
+            if (DateTime.UtcNow - longPressAt < TimeSpan.FromMilliseconds(1500))
+                return; // The native tap recognizer can also fire after a long press; edit only once.
+        }
+#endif
+        MainThread.BeginInvokeOnMainThread(async () => await EditTaskAsync(task));
     }
     private async void TaskOptionsButton_Clicked(object? sender, EventArgs e)
     {
@@ -1005,7 +1014,7 @@ public partial class MainPage : ContentPage
                 row.Add(new Label
                 {
                     Text = selected ? "✓" : string.Empty,
-                    FontSize = 17,
+                    FontSize = 20,
                     FontAttributes = FontAttributes.Bold,
                     TextColor = Color.FromArgb("#8A76EB"),
                     HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,

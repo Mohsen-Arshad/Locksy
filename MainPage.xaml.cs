@@ -37,9 +37,21 @@ public partial class MainPage : ContentPage
     private bool _layoutPreviewActive;
     private double _popupPreferredWidth = 380d;
 #if ANDROID
-    private readonly Dictionary<Android.Views.View, WeakReference<Label>> _nativeTitleViews = new();
     private readonly Dictionary<Android.Views.View, WeakReference<Border>> _nativeTaskRows = new();
     private readonly Dictionary<Android.Views.View, WeakReference<Label>> _nativeTaskGrips = new();
+    private readonly Dictionary<Android.Views.View, WeakReference<Label>> _nativeTaskTitles = new();
+    private readonly Dictionary<Android.Views.View, TaskTitlePressState> _nativeTaskTitlePresses = new();
+    private readonly Dictionary<Guid, DateTime> _recentLongPressTaskTaps = new();
+
+    private sealed class TaskTitlePressState
+    {
+        public required TaskItemViewModel Task { get; init; }
+        public required WeakReference<Label> Label { get; init; }
+        public required float StartRawX { get; init; }
+        public required float StartRawY { get; init; }
+        public CancellationTokenSource Cancellation { get; } = new();
+        public bool Triggered { get; set; }
+    }
     private TaskItemViewModel? _reorderCandidate;
     private TaskItemViewModel? _draggedTask;
     private TaskItemViewModel? _hoveredTask;
@@ -200,6 +212,10 @@ public partial class MainPage : ContentPage
 
     protected override void OnDisappearing()
     {
+#if ANDROID
+        foreach (var nativeView in _nativeTaskTitlePresses.Keys.ToArray())
+            CancelTaskTitlePress(nativeView);
+#endif
         // Queued auto-updates are persisted and run only by MainActivity after the
         // Activity is hidden. Do not cancel an already running wallpaper operation.
         base.OnDisappearing();
