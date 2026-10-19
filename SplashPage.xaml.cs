@@ -85,9 +85,11 @@ public partial class SplashPage : ContentPage
             // view model and local task JSON are prepared before the transition, eliminating
             // the expensive page-construction gap that used to show a black screen.
             var mainPagePreparation = PrepareMainPageAsync(_decorationAnimationCts.Token);
-            await ProgressFill.ScaleXToAsync(1, 850, Easing.CubicOut);
-            await Task.Delay(3500, _decorationAnimationCts.Token);
-            await mainPagePreparation;
+            // Let the progress animation and main-page preparation overlap. There is no
+            // artificial minimum splash delay: transition as soon as both are ready.
+            await Task.WhenAll(
+                ProgressFill.ScaleXToAsync(1, 850, Easing.CubicOut),
+                mainPagePreparation);
 
             if (_preparedMainPage is null)
             {
@@ -125,7 +127,6 @@ public partial class SplashPage : ContentPage
         {
             // Read the tiny local JSON file asynchronously while the splash remains visible;
             // avoid synchronous disk access in MainPage's constructor on the UI thread.
-            await Task.Delay(120, cancellationToken);
             var initialTasks = await _taskRepository.LoadAsync(cancellationToken);
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
