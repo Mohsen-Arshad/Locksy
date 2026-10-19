@@ -23,6 +23,22 @@ public partial class MainPage : ContentPage
         _nativeTaskRows[nativeView] = new WeakReference<Border>(border);
 #endif
     }
+    private void TaskTitle_HandlerChanged(object? sender, EventArgs e)
+    {
+#if ANDROID
+        if (sender is not Label label || label.Handler?.PlatformView is not Android.Views.View nativeView)
+            return;
+
+        nativeView.Touch -= NativeTaskTitle_Touch;
+        nativeView.Touch += NativeTaskTitle_Touch;
+        nativeView.Clickable = true;
+        if (_nativeTaskTitlePresses.TryGetValue(nativeView, out var previous))
+            previous.Cancellation.Cancel();
+        if (label.BindingContext is TaskItemViewModel task)
+            _nativeTaskTitles[nativeView] = new WeakReference<Label>(label);
+#endif
+    }
+
     private void TaskGrip_HandlerChanged(object? sender, EventArgs e)
     {
 #if ANDROID
@@ -38,6 +54,98 @@ public partial class MainPage : ContentPage
     }
 
 #if ANDROID
+    private void NativeTaskTitle_Touch(object? sender, Android.Views.View.TouchEventArgs e)
+    {
+        if (sender is not Android.Views.View nativeView || e.Event is not Android.Views.MotionEvent motion)
+            return;
+
+        switch (motion.ActionMasked)
+        {
+            case Android.Views.MotionEventActions.Down:
+            {
+                CancelTaskTitlePress(nativeView);
+                if (!_nativeTaskTitles.TryGetValue(nativeView, out var weakLabel) ||
+                    !weakLabel.TryGetTarget(out var label) ||
+                    label.BindingContext is not TaskItemViewModel task)
+                    return;
+
+                var state = new TaskTitlePressState
+                {
+                    Task = task,
+                    Label = weakLabel,
+                    StartRawX = motion.RawX,
+                    StartRawY = motion.RawY
+                };
+                _nativeTaskTitlePresses[nativeView] = state;
+                _ = RunTaskTitleLongPressAsync(nativeView, state);
+                break;
+            }
+            case Android.Views.MotionEventActions.Move:
+                if (_nativeTaskTitlePresses.TryGetValue(nativeView, out var movingState))
+                {
+                    var viewContext = nativeView.Context;
+                    var touchSlop = viewContext is null
+                        ? 8
+                        : Android.Views.ViewConfiguration.Get(viewContext)?.ScaledTouchSlop ?? 8;
+                    var slop = Math.Max(24f, touchSlop * 1.7f);
+                    if (Math.Abs(motion.RawX - movingState.StartRawX) > slop ||
+                        Math.Abs(motion.RawY - movingState.StartRawY) > slop)
+                        CancelTaskTitlePress(nativeView);
+                }
+                break;
+            case Android.Views.MotionEventActions.Up:
+            case Android.Views.MotionEventActions.Cancel:
+                CancelTaskTitlePress(nativeView);
+                break;
+        }
+    }
+
+    private async Task RunTaskTitleLongPressAsync(Android.Views.View nativeView, TaskTitlePressState state)
+    {
+        var token = state.Cancellation.Token;
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), token).ConfigureAwait(false);
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                if (token.IsCancellationRequested ||
+                    !_nativeTaskTitlePresses.TryGetValue(nativeView, out var current) ||
+                    !ReferenceEquals(current, state) ||
+                    !state.Label.TryGetTarget(out var label) ||
+                    !ReferenceEquals(label.BindingContext, state.Task) ||
+                    !IsVisible)
+                    return;
+
+                state.Triggered = true;
+                _recentLongPressTaskTaps[state.Task.Id] = DateTime.UtcNow;
+                nativeView.PerformHapticFeedback(Android.Views.FeedbackConstants.LongPress);
+                await EditTaskAsync(state.Task);
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Finger lifted or moved before the 2-second hold completed.
+        }
+        finally
+        {
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                if (_nativeTaskTitlePresses.TryGetValue(nativeView, out var current) && ReferenceEquals(current, state))
+                    _nativeTaskTitlePresses.Remove(nativeView);
+            });
+            state.Cancellation.Dispose();
+        }
+    }
+
+    private void CancelTaskTitlePress(Android.Views.View nativeView)
+    {
+        if (!_nativeTaskTitlePresses.TryGetValue(nativeView, out var state))
+            return;
+        _nativeTaskTitlePresses.Remove(nativeView);
+        if (!state.Triggered)
+            state.Cancellation.Cancel();
+    }
+
     private void NativeGrip_Touch(object? sender, Android.Views.View.TouchEventArgs e)
     {
         if (sender is not Android.Views.View nativeGrip || e.Event is not Android.Views.MotionEvent motion)
@@ -346,34 +454,6 @@ public partial class MainPage : ContentPage
     }
 #endif
 
-    // MAUI does not expose a cross-platform long-press gesture. Android's native
-    // long-click is attached to the task title; the separate grip remains a drag source.
-    private void TaskTitle_HandlerChanged(object? sender, EventArgs e)
-    {
-#if ANDROID
-        if (sender is not Label label || label.Handler?.PlatformView is not Android.Views.View nativeView)
-            return;
-
-        nativeView.LongClickable = true;
-        nativeView.LongClick -= NativeTitle_LongClick;
-        nativeView.LongClick += NativeTitle_LongClick;
-        _nativeTitleViews[nativeView] = new WeakReference<Label>(label);
-#endif
-    }
-
-#if ANDROID
-    private void NativeTitle_LongClick(object? sender, Android.Views.View.LongClickEventArgs e)
-    {
-        if (sender is Android.Views.View nativeView &&
-            _nativeTitleViews.TryGetValue(nativeView, out var weakLabel) &&
-            weakLabel.TryGetTarget(out var label) &&
-            label.BindingContext is TaskItemViewModel task)
-        {
-            e.Handled = true;
-            MainThread.BeginInvokeOnMainThread(async () => await ShowTaskOptionsAsync(task));
-        }
-    }
-#endif
     private void AutoApplyTrack_Tapped(object? sender, TappedEventArgs e)
     {
         AutoApplySwitch.IsToggled = !AutoApplySwitch.IsToggled;

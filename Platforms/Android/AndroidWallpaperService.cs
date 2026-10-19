@@ -45,7 +45,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
         using var bitmap = Bitmap.CreateBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.Argb8888!);
         using var canvas = new Canvas(bitmap);
 
-        DrawBackground(canvas, bitmapWidth, bitmapHeight, darkMode, CustomWallpaperBackgroundService.GetExistingPath());
+        DrawBackground(canvas, bitmapWidth, bitmapHeight, darkMode, CustomWallpaperBackgroundService.GetSelectionForRendering());
         DrawTodos(canvas, bitmapWidth, bitmapHeight, todos.Take(MaxRows).ToList(), darkMode, settings);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -82,6 +82,10 @@ public sealed class AndroidWallpaperService : IWallpaperService
             throw new InvalidOperationException(
                 "Android did not confirm the lock-screen wallpaper update. Retry once. If this phone uses a custom Xiaomi/POCO lock-screen theme, switch its lock-screen style to Classic/Default and retry; regular apps cannot override a theme-owned lock screen.");
         }
+
+        // A slideshow only advances after the bitmap was accepted by WallpaperManager.
+        // Its receiver re-renders the next slide and schedules the following interval.
+        WallpaperSlideshowAlarm.SyncAfterWallpaperApplied();
 
         // The same PNG bytes are returned to the UI for the success-dialog preview,
         // ensuring the preview matches the exact bitmap sent to WallpaperManager.
@@ -164,12 +168,22 @@ public sealed class AndroidWallpaperService : IWallpaperService
         }
     }
 
-    private static void DrawBackground(Canvas canvas, int width, int height, bool dark, string? customImagePath)
+    private static void DrawBackground(Canvas canvas, int width, int height, bool dark, WallpaperBackgroundSelection selection)
     {
-        if (!string.IsNullOrWhiteSpace(customImagePath) && TryDrawCustomBackground(canvas, width, height, dark, customImagePath))
+        if (selection.Mode == WallpaperBackgroundMode.CustomImage &&
+            !string.IsNullOrWhiteSpace(selection.ImagePath) &&
+            TryDrawCustomBackground(canvas, width, height, dark, selection.ImagePath))
             return;
 
-        // Original LockTodo treatment: soft gradient, quiet glow, fine grid, and circular accents.
+        if (selection.Mode == WallpaperBackgroundMode.Preset &&
+            WallpaperBackgroundCatalog.Find(selection.PresetKey) is { } preset)
+        {
+            DrawPresetBackground(canvas, width, height, preset);
+            return;
+        }
+
+        // Original LockTodo treatment remains the selected Default background: soft gradient,
+        // quiet glow, fine grid, and circular accents.
         var bgTop = dark ? AndroidColor.Rgb(12, 13, 22) : AndroidColor.Rgb(247, 245, 251);
         var bgBottom = dark ? AndroidColor.Rgb(31, 20, 48) : AndroidColor.Rgb(223, 214, 246);
         using (var gradient = new LinearGradient(0, 0, width, height, bgTop, bgBottom, Shader.TileMode.Clamp!))
@@ -199,6 +213,40 @@ public sealed class AndroidWallpaperService : IWallpaperService
             AntiAlias = true,
             Color = dark ? AndroidColor.Argb(40, 208, 170, 255) : AndroidColor.Argb(50, 81, 58, 180)
         };
+        ringPaint.SetStyle(AndroidPaint.Style.Stroke);
+        ringPaint.StrokeWidth = Math.Max(2, width / 180f);
+        canvas.DrawCircle(width * 0.9f, height * 0.11f, width * 0.18f, ringPaint);
+        canvas.DrawCircle(width * 0.9f, height * 0.11f, width * 0.13f, ringPaint);
+    }
+
+    private static void DrawPresetBackground(Canvas canvas, int width, int height, WallpaperBackgroundPreset preset)
+    {
+        var top = AndroidColor.ParseColor(preset.TopColor);
+        var bottom = AndroidColor.ParseColor(preset.BottomColor);
+        var accent = AndroidColor.ParseColor(preset.AccentColor);
+        var secondary = AndroidColor.ParseColor(preset.SecondaryAccentColor);
+
+        using (var gradient = new LinearGradient(0, 0, width * 0.72f, height, top, bottom, Shader.TileMode.Clamp!))
+        using (var paint = new AndroidPaint { AntiAlias = true })
+        {
+            paint.SetShader(gradient);
+            canvas.DrawRect(0, 0, width, height, paint);
+        }
+
+        DrawGlow(canvas, width * 0.83f, height * 0.16f, width * 0.31f, AndroidColor.Argb(72, accent.R, accent.G, accent.B));
+        DrawGlow(canvas, width * 0.12f, height * 0.82f, width * 0.35f, AndroidColor.Argb(64, secondary.R, secondary.G, secondary.B));
+
+        using var gridPaint = new AndroidPaint
+        {
+            AntiAlias = false,
+            Color = AndroidColor.Argb(15, 255, 255, 255)
+        };
+        gridPaint.StrokeWidth = Math.Max(1, width / 900f);
+        var step = Math.Max(46, width / 12f);
+        for (var x = 0f; x <= width; x += step) canvas.DrawLine(x, 0, x, height, gridPaint);
+        for (var y = 0f; y <= height; y += step) canvas.DrawLine(0, y, width, y, gridPaint);
+
+        using var ringPaint = new AndroidPaint { AntiAlias = true, Color = AndroidColor.Argb(52, accent.R, accent.G, accent.B) };
         ringPaint.SetStyle(AndroidPaint.Style.Stroke);
         ringPaint.StrokeWidth = Math.Max(2, width / 180f);
         canvas.DrawCircle(width * 0.9f, height * 0.11f, width * 0.18f, ringPaint);

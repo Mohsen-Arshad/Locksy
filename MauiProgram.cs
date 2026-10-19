@@ -26,6 +26,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ILanguageSettingsService, LanguageSettingsService>();
         builder.Services.AddSingleton<IImagePickerService, ImagePickerService>();
         builder.Services.AddSingleton<IExternalNavigationService, ExternalNavigationService>();
+        builder.Services.AddSingleton<IWallpaperSlideshowScheduler, AndroidWallpaperSlideshowScheduler>();
         builder.Services.AddSingleton<ICustomWallpaperBackgroundManager, CustomWallpaperBackgroundManager>();
         builder.Services.AddSingleton<INotificationPermissionService, NotificationPermissionService>();
         builder.Services.AddSingleton<IReminderSchedulingService, ReminderSchedulingService>();

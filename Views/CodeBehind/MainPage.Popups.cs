@@ -400,9 +400,7 @@ public partial class MainPage : ContentPage
         {
             // The text-direction glyph needs a little more visual weight than the other action icons.
             // Render it as SVG so its optical center does not depend on font baseline metrics.
-            var iconSize = string.Equals(vectorIconSource, "locksy_text_direction_icon.svg", StringComparison.OrdinalIgnoreCase)
-                ? 23d
-                : 28d;
+            var iconSize = 21d;
             iconContent = new Image
             {
                 Source = ImageSource.FromFile(vectorIconSource),
@@ -418,7 +416,8 @@ public partial class MainPage : ContentPage
             iconContent = new Label
             {
                 Text = icon,
-                FontSize = 16,
+                FontSize = 20,
+                FontAttributes = FontAttributes.Bold,
                 TextColor = destructive ? PopupColor("#A83E59", "#FFC1D0") : Color.FromArgb("#8A76EB"),
                 HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
                 VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
@@ -451,6 +450,7 @@ public partial class MainPage : ContentPage
         {
             Text = LocalizationService.IsPersian ? "‹" : "›",
             FontSize = 22,
+            FontAttributes = FontAttributes.Bold,
             TextColor = PopupColor("#A29AB7", "#9189A8"),
             VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center,
             HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center
