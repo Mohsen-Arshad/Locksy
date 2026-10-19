@@ -18,6 +18,7 @@ public sealed class CustomWallpaperBackgroundManager : ICustomWallpaperBackgroun
     public string? GetCurrentPreviewPresetKey() => CustomWallpaperBackgroundService.GetCurrentPreviewPresetKey();
     public IReadOnlyList<WallpaperSlideshowItem> GetSlideshowItems() => CustomWallpaperBackgroundService.GetSlideshowItems();
     public int GetSlideshowIntervalMinutes() => CustomWallpaperBackgroundService.GetSlideshowIntervalMinutes();
+    public WallpaperBackgroundSettingsSnapshot GetSettingsSnapshot() => CustomWallpaperBackgroundService.GetSettingsSnapshot();
 
     public async Task SaveAsync(FileResult file)
     {

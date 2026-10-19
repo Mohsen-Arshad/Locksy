@@ -199,16 +199,39 @@ public partial class MainPage : ContentPage
             e.Title, e.Message, isError: e.IsError, previewBytes: e.PreviewBytes));
     }
 
-    private void OnLanguageChanged(object? sender, EventArgs e) => ApplyLocalization();
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        // Text and FlowDirection are baked into dynamically-created views. A language change
+        // makes every retained settings tree stale, so force them to be rebuilt on next visit.
+        ClearSettingsPageVisualCache();
+        ApplyLocalization();
+    }
 
     private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SettingsViewModel.IsDarkMode))
         {
-            // The Auto update track receives explicit colors, which override XAML AppThemeBinding.
-            // Reapply the palette when the user changes theme so it matches Reminder alarm immediately.
+            // Manually-colored settings controls are not AppThemeBindings. Invalidate the cached
+            // trees so the next navigation rebuilds them with the new palette.
             MainThread.BeginInvokeOnMainThread(() =>
-                UpdateAutoApplyVisual(_wallpaperViewModel.IsAutoApplyEnabled));
+            {
+                ClearSettingsPageVisualCache();
+                UpdateAutoApplyVisual(_wallpaperViewModel.IsAutoApplyEnabled);
+            });
+            return;
+        }
+
+        if (e.PropertyName is nameof(SettingsViewModel.BackgroundMode)
+            or nameof(SettingsViewModel.HasCustomBackground)
+            or nameof(SettingsViewModel.SelectedPresetKey)
+            or nameof(SettingsViewModel.CurrentBackgroundPreviewPath)
+            or nameof(SettingsViewModel.CurrentBackgroundPresetKey)
+            or nameof(SettingsViewModel.BackgroundSummary)
+            or nameof(SettingsViewModel.SlideshowItems)
+            or nameof(SettingsViewModel.SlideshowIntervalMinutes)
+            or nameof(SettingsViewModel.IsSlideshowSelected))
+        {
+            MainThread.BeginInvokeOnMainThread(InvalidateBackgroundSettingsVisualCache);
         }
     }
 

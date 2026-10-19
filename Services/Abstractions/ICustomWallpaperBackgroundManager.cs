@@ -11,6 +11,7 @@ public interface ICustomWallpaperBackgroundManager
     string? GetCurrentPreviewPresetKey();
     IReadOnlyList<WallpaperSlideshowItem> GetSlideshowItems();
     int GetSlideshowIntervalMinutes();
+    WallpaperBackgroundSettingsSnapshot GetSettingsSnapshot();
     Task SaveAsync(FileResult file);
     Task<IReadOnlyList<WallpaperSlideshowItem>> AddSlideshowImagesAsync(IEnumerable<FileResult> images);
     void SelectDefault();
