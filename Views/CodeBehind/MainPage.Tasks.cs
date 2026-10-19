@@ -17,6 +17,26 @@ namespace Locksy;
 
 public partial class MainPage : ContentPage
 {
+    // The reminder form contains many hand-styled controls. Build it on first use, then
+    // reuse the exact visual tree on later opens and refresh only its mutable values.
+    private sealed class NewReminderPopupVisualCache
+    {
+        public VerticalStackLayout BodyRoot { get; set; } = null!;
+        public VerticalStackLayout FooterRoot { get; set; } = null!;
+        public Entry DraftTitleEntry { get; set; } = null!;
+        public DatePicker DatePicker { get; set; } = null!;
+        public TimePicker TimePicker { get; set; } = null!;
+        public string SelectedPaletteKey { get; set; } = TodoPalette.VibrantPaletteKey;
+        public string SelectedColorKey { get; set; } = TodoPalette.NoColorKey;
+        public bool ReminderAlarmEnabled { get; set; }
+        public bool IsDarkTheme { get; set; }
+        public Action RefreshDraftColors { get; set; } = static () => { };
+        public Action UpdateAlarmControls { get; set; } = static () => { };
+    }
+
+    private NewReminderPopupVisualCache? _newReminderPopupVisualCache;
+
+    private void InvalidateNewReminderPopupVisualCache() => _newReminderPopupVisualCache = null;
     private void NewTaskEntry_TextChanged(object? sender, TextChangedEventArgs e) =>
         UpdateNewTaskEntryFlowDirection(e.NewTextValue);
 
@@ -124,10 +144,10 @@ public partial class MainPage : ContentPage
         var popupBuildStarted = Stopwatch.GetTimestamp();
 #endif
         var initialTitle = (_viewModel.NewTaskText ?? string.Empty).Trim();
-        var selectedPaletteKey = _viewModel.NewTaskSettings.HasPendingSettings
+        var initialPaletteKey = _viewModel.NewTaskSettings.HasPendingSettings
             ? _viewModel.NewTaskSettings.PaletteKey
             : TodoPalette.VibrantPaletteKey;
-        var selectedColorKey = _viewModel.NewTaskSettings.HasPendingSettings
+        var initialColorKey = _viewModel.NewTaskSettings.HasPendingSettings
             ? _viewModel.NewTaskSettings.ColorKey
             : TodoPalette.NoColorKey;
         var alarmEnabled = _viewModel.NewTaskSettings.HasPendingSettings && _viewModel.NewTaskSettings.ReminderEnabled;
@@ -135,12 +155,39 @@ public partial class MainPage : ContentPage
             ? savedTime
             : DateTime.Now.AddMinutes(5);
 
+        var isFirstBuild = _newReminderPopupVisualCache is null;
+        var draftCache = _newReminderPopupVisualCache ?? new NewReminderPopupVisualCache();
+        draftCache.SelectedPaletteKey = initialPaletteKey;
+        draftCache.SelectedColorKey = initialColorKey;
+        draftCache.ReminderAlarmEnabled = alarmEnabled;
+        draftCache.IsDarkTheme = _viewModel.Settings?.IsDarkMode ?? false;
+
         var completion = BeginPopup(
             "New reminder settings",
             "Enter the reminder, choose its color, and optionally set an alarm before adding it.",
             "options");
         _popupPreferredWidth = 370d;
         ApplyResponsivePopupBounds();
+
+        if (!isFirstBuild)
+        {
+            // Content was built during the first open. Reattach it directly and update only
+            // draft values; do not create a spinner, gestures, Borders, or pickers again.
+            draftCache.DraftTitleEntry.Text = initialTitle;
+            draftCache.DatePicker.MinimumDate = DateTime.Today;
+            draftCache.DatePicker.Date = initialReminder.Date;
+            draftCache.TimePicker.Time = new TimeSpan(initialReminder.Hour, initialReminder.Minute, 0);
+            draftCache.RefreshDraftColors();
+            draftCache.UpdateAlarmControls();
+            ModalBodyHost.Content = draftCache.BodyRoot;
+            ModalButtonsHost.Content = draftCache.FooterRoot;
+            _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
+#if DEBUG
+            Debug.WriteLine("[Locksy.Perf] New reminder popup source=cache; controlTreeBuildMs=0");
+#endif
+            await CompleteNewReminderSettingsPopupAsync(completion, draftCache);
+            return;
+        }
 
         // Paint a compact placeholder immediately instead of keeping the modal hidden while
         // the full palette/date-picker control tree is constructed. The real body is staged and
@@ -201,6 +248,7 @@ public partial class MainPage : ContentPage
             TextColor = PopupColor("#303545", "#F1F2FA"),
             PlaceholderColor = PopupColor("#8C8798", "#9690A8")
         };
+        draftCache.DraftTitleEntry = draftTitleEntry;
         draftTitleEntry.TextChanged += (_, args) =>
             draftTitleEntry.FlowDirection = ResolveTaskFlowDirection(args.NewTextValue, TaskTextDirection.Auto);
         ModalBody.Children.Add(new Border
@@ -246,7 +294,7 @@ public partial class MainPage : ContentPage
         {
             foreach (var palette in TodoPalette.Palettes)
             {
-                var chosen = palette.Key == selectedPaletteKey;
+                var chosen = palette.Key == draftCache.SelectedPaletteKey;
                 paletteBorders[palette.Key].BackgroundColor = chosen
                     ? PopupColor("#E1D9FF", "#3A3158")
                     : PopupColor("#E9EAF2", "#20212E");
@@ -261,8 +309,8 @@ public partial class MainPage : ContentPage
 
             foreach (var option in TodoPalette.Options)
             {
-                colorSwatches[option.Key].BackgroundColor = Color.FromArgb(TodoPalette.GetHex(option.Key, selectedPaletteKey));
-                var chosen = option.Key == selectedColorKey;
+                colorSwatches[option.Key].BackgroundColor = Color.FromArgb(TodoPalette.GetHex(option.Key, draftCache.SelectedPaletteKey));
+                var chosen = option.Key == draftCache.SelectedColorKey;
                 colorBorders[option.Key].BackgroundColor = chosen
                     ? PopupColor("#E4DFFF", "#38304F")
                     : PopupColor("#F0F2F8", "#252736");
@@ -273,6 +321,8 @@ public partial class MainPage : ContentPage
                 colorLabels[option.Key].TextColor = PopupColor("#3F4559", "#E5E7F5");
             }
         }
+
+        draftCache.RefreshDraftColors = RefreshDraftColors;
 
         for (var i = 0; i < TodoPalette.Palettes.Count; i++)
         {
@@ -300,7 +350,7 @@ public partial class MainPage : ContentPage
             var tap = new TapGestureRecognizer();
             tap.Tapped += (_, _) =>
             {
-                selectedPaletteKey = key;
+                draftCache.SelectedPaletteKey = key;
                 RefreshDraftColors();
             };
             border.GestureRecognizers.Add(tap);
@@ -316,7 +366,7 @@ public partial class MainPage : ContentPage
             {
                 WidthRequest = 17,
                 HeightRequest = 17,
-                BackgroundColor = Color.FromArgb(TodoPalette.GetHex(option.Key, selectedPaletteKey)),
+                BackgroundColor = Color.FromArgb(TodoPalette.GetHex(option.Key, draftCache.SelectedPaletteKey)),
                 Stroke = new SolidColorBrush(PopupColor("#D1D7E3", "#53566B")),
                 StrokeThickness = 0.7,
                 StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8.5) },
@@ -353,7 +403,7 @@ public partial class MainPage : ContentPage
             var colorTap = new TapGestureRecognizer();
             colorTap.Tapped += (_, _) =>
             {
-                selectedColorKey = colorKey;
+                draftCache.SelectedColorKey = colorKey;
                 RefreshDraftColors();
             };
             border.GestureRecognizers.Add(colorTap);
@@ -384,14 +434,13 @@ public partial class MainPage : ContentPage
             TextColor = PopupColor("#303545", "#F1F2FA"),
             VerticalTextAlignment = TextAlignment.Center
         };
-        var reminderAlarmEnabled = alarmEnabled;
-        var isDarkTheme = _viewModel.Settings?.IsDarkMode ?? false;
+        var isDarkTheme = draftCache.IsDarkTheme;
         var alarmToggleThumb = new Ellipse
         {
             WidthRequest = 19,
             HeightRequest = 19,
-            Fill = Color.FromArgb(reminderAlarmEnabled ? "#F8F6FF" : isDarkTheme ? "#777F95" : "#7F899F"),
-            HorizontalOptions = reminderAlarmEnabled ? LayoutOptions.End : LayoutOptions.Start,
+            Fill = Color.FromArgb(draftCache.ReminderAlarmEnabled ? "#F8F6FF" : isDarkTheme ? "#777F95" : "#7F899F"),
+            HorizontalOptions = draftCache.ReminderAlarmEnabled ? LayoutOptions.End : LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Center
         };
         var alarmToggleContent = new Grid();
@@ -401,8 +450,8 @@ public partial class MainPage : ContentPage
             WidthRequest = 46,
             HeightRequest = 27,
             Padding = 3,
-            BackgroundColor = GetToggleTrackBackgroundColor(reminderAlarmEnabled, isDarkTheme),
-            Stroke = new SolidColorBrush(Color.FromArgb(reminderAlarmEnabled
+            BackgroundColor = GetToggleTrackBackgroundColor(draftCache.ReminderAlarmEnabled, isDarkTheme),
+            Stroke = new SolidColorBrush(Color.FromArgb(draftCache.ReminderAlarmEnabled
                 ? (isDarkTheme ? "#A99BFF" : "#8875E8")
                 : isDarkTheme ? "#3B3E52" : "#B7C2D4")),
             StrokeThickness = 1,
@@ -432,6 +481,7 @@ public partial class MainPage : ContentPage
             BackgroundColor = Colors.Transparent,
             HorizontalOptions = LayoutOptions.Fill
         };
+        draftCache.DatePicker = datePicker;
         var timePicker = new TimePicker
         {
             Time = new TimeSpan(defaultReminder.Hour, defaultReminder.Minute, 0),
@@ -441,6 +491,7 @@ public partial class MainPage : ContentPage
             BackgroundColor = Colors.Transparent,
             HorizontalOptions = LayoutOptions.Fill
         };
+        draftCache.TimePicker = timePicker;
         var dateTimeGrid = new Grid
         {
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) },
@@ -458,26 +509,27 @@ public partial class MainPage : ContentPage
 
         void UpdateAlarmToggleVisual()
         {
-            alarmToggleTrack.BackgroundColor = GetToggleTrackBackgroundColor(reminderAlarmEnabled, isDarkTheme);
-            alarmToggleTrack.Stroke = new SolidColorBrush(Color.FromArgb(reminderAlarmEnabled
+            alarmToggleTrack.BackgroundColor = GetToggleTrackBackgroundColor(draftCache.ReminderAlarmEnabled, isDarkTheme);
+            alarmToggleTrack.Stroke = new SolidColorBrush(Color.FromArgb(draftCache.ReminderAlarmEnabled
                 ? (isDarkTheme ? "#A99BFF" : "#8875E8")
                 : isDarkTheme ? "#3B3E52" : "#B7C2D4"));
-            alarmToggleThumb.Fill = Color.FromArgb(reminderAlarmEnabled
+            alarmToggleThumb.Fill = Color.FromArgb(draftCache.ReminderAlarmEnabled
                 ? "#F8F6FF"
                 : isDarkTheme ? "#777F95" : "#7F899F");
-            alarmToggleThumb.HorizontalOptions = reminderAlarmEnabled ? LayoutOptions.End : LayoutOptions.Start;
+            alarmToggleThumb.HorizontalOptions = draftCache.ReminderAlarmEnabled ? LayoutOptions.End : LayoutOptions.Start;
         }
         void UpdateAlarmControls()
         {
-            datePicker.IsEnabled = reminderAlarmEnabled;
-            timePicker.IsEnabled = reminderAlarmEnabled;
-            dateTimeGrid.Opacity = reminderAlarmEnabled ? 1 : 0.42;
+            datePicker.IsEnabled = draftCache.ReminderAlarmEnabled;
+            timePicker.IsEnabled = draftCache.ReminderAlarmEnabled;
+            dateTimeGrid.Opacity = draftCache.ReminderAlarmEnabled ? 1 : 0.42;
             UpdateAlarmToggleVisual();
         }
+        draftCache.UpdateAlarmControls = UpdateAlarmControls;
         var alarmToggleTap = new TapGestureRecognizer();
         alarmToggleTap.Tapped += (_, _) =>
         {
-            reminderAlarmEnabled = !reminderAlarmEnabled;
+            draftCache.ReminderAlarmEnabled = !draftCache.ReminderAlarmEnabled;
             UpdateAlarmControls();
         };
         alarmToggleTrack.GestureRecognizers.Add(alarmToggleTap);
@@ -485,13 +537,14 @@ public partial class MainPage : ContentPage
 
         bool ValidateDraft(bool adding)
         {
-            if (reminderAlarmEnabled && ((datePicker.Date ?? DateTime.Today).Date.Add(timePicker.Time ?? TimeSpan.Zero)) <= DateTime.Now)
+            if (draftCache.ReminderAlarmEnabled &&
+                ((draftCache.DatePicker.Date ?? DateTime.Today).Date.Add(draftCache.TimePicker.Time ?? TimeSpan.Zero)) <= DateTime.Now)
             {
                 SetModalMessageText("Choose a future date and time for the alarm.");
                 ModalMessage.IsVisible = true;
                 return false;
             }
-            if (adding && string.IsNullOrWhiteSpace(draftTitleEntry.Text))
+            if (adding && string.IsNullOrWhiteSpace(draftCache.DraftTitleEntry.Text))
             {
                 SetModalMessageText("Enter a reminder title before adding it.");
                 ModalMessage.IsVisible = true;
@@ -522,22 +575,36 @@ public partial class MainPage : ContentPage
             return;
         }
         CommitStagedModalContentBuild();
+        draftCache.BodyRoot = ModalBodyHost.Content as VerticalStackLayout
+            ?? throw new InvalidOperationException("The reminder popup body root was not created.");
+        draftCache.FooterRoot = ModalButtonsHost.Content as VerticalStackLayout
+            ?? throw new InvalidOperationException("The reminder popup footer root was not created.");
+        _newReminderPopupVisualCache = draftCache;
 #if DEBUG
-        Debug.WriteLine($"[Locksy.Perf] New reminder popup buildMs={Stopwatch.GetElapsedTime(popupBuildStarted).TotalMilliseconds:F1}; bodyViews={ModalBody.Children.Count}; colorOptions={TodoPalette.Options.Count}; palettes={TodoPalette.Palettes.Count}");
+        Debug.WriteLine($"[Locksy.Perf] New reminder popup source=fresh-build; buildMs={Stopwatch.GetElapsedTime(popupBuildStarted).TotalMilliseconds:F1}; bodyViews={draftCache.BodyRoot.Children.Count}; colorOptions={TodoPalette.Options.Count}; palettes={TodoPalette.Palettes.Count}");
 #endif
 
+        await CompleteNewReminderSettingsPopupAsync(completion, draftCache);
+    }
+    private async Task CompleteNewReminderSettingsPopupAsync(
+        TaskCompletionSource<string?> completion,
+        NewReminderPopupVisualCache cache)
+    {
         var result = await completion.Task;
         _popupPreferredWidth = 380d;
         ApplyResponsivePopupBounds();
-        if (result is null) return;
+        if (result is null)
+            return;
 
-        _viewModel.NewTaskText = (draftTitleEntry.Text ?? string.Empty).Trim();
+        _viewModel.NewTaskText = (cache.DraftTitleEntry.Text ?? string.Empty).Trim();
         _viewModel.NewTaskSettings.Save(
-            selectedColorKey,
-            selectedPaletteKey,
-            reminderAlarmEnabled,
-            reminderAlarmEnabled
-                ? DateTime.SpecifyKind((datePicker.Date ?? DateTime.Today).Date.Add(timePicker.Time ?? TimeSpan.Zero), DateTimeKind.Local)
+            cache.SelectedColorKey,
+            cache.SelectedPaletteKey,
+            cache.ReminderAlarmEnabled,
+            cache.ReminderAlarmEnabled
+                ? DateTime.SpecifyKind(
+                    (cache.DatePicker.Date ?? DateTime.Today).Date.Add(cache.TimePicker.Time ?? TimeSpan.Zero),
+                    DateTimeKind.Local)
                 : null);
 
         if (result == "SAVE_SETTINGS")
@@ -549,6 +616,7 @@ public partial class MainPage : ContentPage
         if (result == "ADD_REMINDER")
             await AddTaskAndKeepInputReadyAsync();
     }
+
     private async Task<bool> EnsureNotificationPermissionAsync(bool keepModalOpenOnDismiss = false)
     {
         try
@@ -756,7 +824,7 @@ public partial class MainPage : ContentPage
         _popupPreferredWidth = keepModalOpenAfterEdit ? 380d : 330d;
         ApplyResponsivePopupBounds();
 
-        var enabled = new Switch
+        var enabled = new Microsoft.Maui.Controls.Switch
         {
             IsToggled = task.IsReminderEnabled && task.ReminderAt.HasValue,
             OnColor = Color.FromArgb("#8875E8"),

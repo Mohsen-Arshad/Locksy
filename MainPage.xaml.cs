@@ -202,8 +202,9 @@ public partial class MainPage : ContentPage
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         // Text and FlowDirection are baked into dynamically-created views. A language change
-        // makes every retained settings tree stale, so force them to be rebuilt on next visit.
+        // makes every retained tree stale, so rebuild it once on next use.
         ClearSettingsPageVisualCache();
+        InvalidateNewReminderPopupVisualCache();
         ApplyLocalization();
     }
 
@@ -216,6 +217,7 @@ public partial class MainPage : ContentPage
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 ClearSettingsPageVisualCache();
+                InvalidateNewReminderPopupVisualCache();
                 UpdateAutoApplyVisual(_wallpaperViewModel.IsAutoApplyEnabled);
             });
             return;
