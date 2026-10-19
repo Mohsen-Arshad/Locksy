@@ -38,7 +38,7 @@ public partial class MainPage : ContentPage
     private double _popupPreferredWidth = 380d;
 #if ANDROID
     private readonly Dictionary<Android.Views.View, WeakReference<Border>> _nativeTaskRows = new();
-    private readonly Dictionary<Android.Views.View, WeakReference<Label>> _nativeTaskGrips = new();
+    private readonly Dictionary<Android.Views.View, WeakReference<VisualElement>> _nativeTaskGrips = new();
     private readonly Dictionary<Android.Views.View, WeakReference<Label>> _nativeTaskTitles = new();
     private readonly Dictionary<Android.Views.View, TaskTitlePressState> _nativeTaskTitlePresses = new();
     private readonly Dictionary<Guid, DateTime> _recentLongPressTaskTaps = new();
@@ -169,7 +169,9 @@ public partial class MainPage : ContentPage
         UpdateNewTaskEntryFlowDirection(NewTaskEntry.Text);
         HeaderTaglineLabel.Text = LocalizedDisplayText("Keep what matters in sight.");
         NewTaskEntry.Placeholder = LocalizedDisplayText("Add a task...");
-        AddTaskButton.Text = LocalizedDisplayText("＋ Add");
+        AddTaskButton.Text = string.Empty;
+        AddTaskButtonLabel.Text = LocalizedDisplayText("Add");
+        SemanticProperties.SetDescription(AddTaskButton, LocalizedDisplayText("Add"));
         EmptyListTitleLabel.Text = LocalizedDisplayText("Your list is clear");
         EmptyListDescriptionLabel.Text = LocalizedDisplayText("Add your first task. It will be saved on this device.");
         ClockLayoutCaption.Text = LocalizedDisplayText("Tasks layout");

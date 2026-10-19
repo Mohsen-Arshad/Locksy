@@ -92,22 +92,36 @@
                          CornerRadius="16"
                          HeightRequest="52"
                          WidthRequest="48"
-                         Padding="11"
+                         Padding="4"
                          Aspect="AspectFit"
                          SemanticProperties.Description="New reminder settings" />
-            <Button x:Name="AddTaskButton" Grid.Column="2"
-                    Text="＋ Add"
-                    Clicked="AddTaskButton_Clicked"
-                    BackgroundColor="#8875E8"
-                    TextColor="White"
-                    CornerRadius="16"
-                    HeightRequest="52"
-                    Padding="14,0"
-                    FontAttributes="Bold">
-                <Button.Shadow>
-                    <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="2,3" Radius="8" Opacity="0.42" />
-                </Button.Shadow>
-            </Button>
+            <Grid Grid.Column="2" WidthRequest="88" HeightRequest="52">
+                <Button x:Name="AddTaskButton"
+                        Text=""
+                        Clicked="AddTaskButton_Clicked"
+                        BackgroundColor="#8875E8"
+                        TextColor="White"
+                        CornerRadius="16"
+                        HeightRequest="52"
+                        Padding="0"
+                        FontAttributes="Bold">
+                    <Button.Shadow>
+                        <Shadow Brush="{AppThemeBinding Light={StaticResource LocksyLightShadowBrush}, Dark={StaticResource LocksyDarkShadowBrush}}" Offset="2,3" Radius="8" Opacity="0.42" />
+                    </Button.Shadow>
+                </Button>
+                <HorizontalStackLayout InputTransparent="True"
+                                       HorizontalOptions="Center" VerticalOptions="Center" Spacing="6">
+                    <Border WidthRequest="28" HeightRequest="28" Padding="3"
+                            BackgroundColor="White" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 14"
+                            HorizontalOptions="Center" VerticalOptions="Center">
+                        <Image Source="icon_plus.svg" WidthRequest="22" HeightRequest="22"
+                               Aspect="AspectFit" HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                    <Label x:Name="AddTaskButtonLabel" Text="Add" FontSize="13" FontAttributes="Bold"
+                           TextColor="White" VerticalTextAlignment="Center" />
+                </HorizontalStackLayout>
+            </Grid>
         </Grid>
 
         <!-- Drag by the dotted handle. Tap the task text to edit; long-press it for options. -->
@@ -119,14 +133,15 @@
                         ItemsUpdatingScrollMode="KeepScrollOffset">
             <CollectionView.EmptyView>
                 <VerticalStackLayout Padding="16,34" Spacing="10" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image Source="empty_list_add_icon.png"
-                           WidthRequest="92"
-                           HeightRequest="92"
-                           Aspect="AspectFit"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center"
-                           SemanticProperties.Description="Empty task list illustration" />
-                    <Label x:Name="EmptyListTitleLabel" Text="Your list is clear"
+
+                        <Image Source="empty_list_add_icon.png"
+                               WidthRequest="120"
+                               HeightRequest="120"
+                               Aspect="AspectFit"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center"
+                               SemanticProperties.Description="Empty task list" />
+                        <Label x:Name="EmptyListTitleLabel" Text="Your list is clear"
                            FontSize="20"
                            FontAttributes="Bold"
                            TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
@@ -160,17 +175,15 @@
                                       IsChecked="{Binding IsCompleted}"
                                       Color="#8875E8"
                                       VerticalOptions="Center" />
-                            <Label Grid.Column="1" Grid.RowSpan="2"
-                                   Text="⠿"
-                                   FontSize="23"
-                                   FontAttributes="Bold"
-                                   WidthRequest="36"
-                                   HeightRequest="44"
-                                   HorizontalTextAlignment="Center"
-                                   VerticalTextAlignment="Center"
-                                   TextColor="{AppThemeBinding Light=#77738A, Dark=#C0BCD2}"
-                                   HandlerChanged="TaskGrip_HandlerChanged"
-                                   SemanticProperties.Description="Drag to reorder" />
+                            <Grid Grid.Column="1" Grid.RowSpan="2"
+                                  WidthRequest="36" HeightRequest="44"
+                                  HorizontalOptions="Center" VerticalOptions="Center"
+                                  HandlerChanged="TaskGrip_HandlerChanged"
+                                  SemanticProperties.Description="Drag to reorder">
+                                <Image Source="icon_reorder.svg" WidthRequest="22" HeightRequest="22"
+                                       Aspect="AspectFit" InputTransparent="True"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Grid>
                             <Ellipse Grid.Row="1" Grid.Column="3"
                                      WidthRequest="23"
                                      HeightRequest="23"
@@ -194,18 +207,16 @@
                                     <TapGestureRecognizer Tapped="TaskTitle_Tapped" />
                                 </Label.GestureRecognizers>
                             </Label>
-                            <Button Grid.Row="0" Grid.Column="3"
-                                    Text="⋯"
-                                    FontSize="22"
-                                    FontAttributes="Bold"
-                                    WidthRequest="38"
-                                    HeightRequest="30"
-                                    Padding="0"
-                                    BackgroundColor="Transparent"
-                                    TextColor="{AppThemeBinding Light=#5D5A70, Dark=#D5D1E4}"
-                                    Clicked="TaskOptionsButton_Clicked"
-                                    SemanticProperties.Description="Task options"
-                                    VerticalOptions="Center" />
+                            <ImageButton Grid.Row="0" Grid.Column="3"
+                                         Source="icon_more.svg"
+                                         WidthRequest="38" HeightRequest="30"
+                                         Padding="8,4"
+                                         BackgroundColor="Transparent"
+                                         Aspect="AspectFit"
+                                         Clicked="TaskOptionsButton_Clicked"
+                                         SemanticProperties.Description="Task options"
+                                         HorizontalOptions="Center"
+                                         VerticalOptions="Center" />
                         </Grid>
                         </Border>
                     </Grid>
@@ -243,11 +254,11 @@
                            TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
                            VerticalTextAlignment="Center"
                            LineBreakMode="TailTruncation" />
-                    <Label Grid.Column="1"
-                           Text="⌄"
-                           FontSize="18"
-                           TextColor="{AppThemeBinding Light=#81799A, Dark=#B8AFD2}"
-                           VerticalTextAlignment="Center" />
+                    <Image Grid.Column="1"
+                           Source="icon_chevron_down.svg"
+                           WidthRequest="22" HeightRequest="22"
+                           Aspect="AspectFit"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
                 </Grid>
             </Border>
             <Label x:Name="AutoApplyCaption" Grid.Row="1" Grid.Column="0"
@@ -400,14 +411,9 @@
                               IsEnabled="False"
                               Color="#8875E8"
                               VerticalOptions="Center" />
-                    <Label Grid.Column="1"
-                           Text="⠿"
-                           FontSize="23"
-                           WidthRequest="36"
-                           HeightRequest="44"
-                           HorizontalTextAlignment="Center"
-                           VerticalTextAlignment="Center"
-                           TextColor="{AppThemeBinding Light=#8875E8, Dark=#B7A9FF}" />
+                    <Image Grid.Column="1" Source="icon_reorder.svg"
+                           WidthRequest="22" HeightRequest="22" Aspect="AspectFit"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
                     <Label x:Name="DragGhostTitle"
                            Grid.Column="2"
                            Text="Moving task"
@@ -415,14 +421,9 @@
                            LineBreakMode="WordWrap"
                            VerticalTextAlignment="Center"
                            TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}" />
-                    <Label Grid.Column="3"
-                           Text="⋯"
-                           FontSize="22"
-                           WidthRequest="38"
-                           HeightRequest="42"
-                           HorizontalTextAlignment="Center"
-                           VerticalTextAlignment="Center"
-                           TextColor="{AppThemeBinding Light=#687087, Dark=#BFC4D7}" />
+                    <Image Grid.Column="3" Source="icon_more.svg"
+                           WidthRequest="22" HeightRequest="22" Aspect="AspectFit"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
                 </Grid>
             </Border>
         </Grid>
@@ -456,29 +457,38 @@
                     VerticalOptions="Center">
                 <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
                     <Grid Grid.Row="0" ColumnDefinitions="44,*" ColumnSpacing="12">
-                        <Border WidthRequest="44"
+                        <Border x:Name="ModalIconContainer"
+                                WidthRequest="44"
                                 HeightRequest="44"
+                                HorizontalOptions="Center"
                                 BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
                                 Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorderSoft}, Dark={StaticResource LocksyDarkBorder}}"
                                 StrokeThickness="1"
                                 StrokeShape="RoundRectangle 15"
                                 VerticalOptions="Center">
                             <Grid>
-                                <Label x:Name="ModalIconLabel"
-                                       Text="✦"
-                                       FontSize="22"
-                                       TextColor="#8A76EB"
-                                       HorizontalTextAlignment="Center"
-                                       VerticalTextAlignment="Center"
-                                       HorizontalOptions="Center"
-                                       VerticalOptions="Center" />
                                 <Image x:Name="ModalIconImage"
-                                       IsVisible="False"
-                                       WidthRequest="23"
-                                       HeightRequest="23"
+                                       IsVisible="True"
+                                       WidthRequest="30"
+                                       HeightRequest="30"
                                        Aspect="AspectFit"
                                        HorizontalOptions="Center"
                                        VerticalOptions="Center" />
+                                <Label x:Name="ModalIconTextLabel"
+                                       Text="EN"
+                                       IsVisible="False"
+                                       WidthRequest="30"
+                                       HeightRequest="30"
+                                       FontSize="14"
+                                       FontAttributes="Bold"
+                                       CharacterSpacing="0.25"
+                                       TextColor="{AppThemeBinding Light=#8875E8, Dark=#B7A9FF}"
+                                       FlowDirection="LeftToRight"
+                                       HorizontalTextAlignment="Center"
+                                       VerticalTextAlignment="Center"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center"
+                                       InputTransparent="True" />
                             </Grid>
                         </Border>
                         <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">

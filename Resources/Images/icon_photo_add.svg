@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <title>Choose one photo</title>
+  <circle cx="12" cy="12" r="9.25" fill="none" stroke="#8875E8" stroke-width="1.8"/>
+  <path d="M12 7.4v9.2M7.4 12h9.2" fill="none" stroke="#8875E8" stroke-width="2" stroke-linecap="round"/>
+</svg>

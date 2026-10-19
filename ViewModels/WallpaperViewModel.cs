@@ -153,7 +153,7 @@ public sealed class WallpaperViewModel : ObservableObject, IDisposable, IWallpap
         _isAutoApplyEnabled = _preferences.GetBoolean(AutoApplyPreferenceKey, false);
         _isAutoApplyPending = _isAutoApplyEnabled && _preferences.GetBoolean(AutoApplyPendingPreferenceKey, false);
         _statusMessage = _isAutoApplyPending ? _localizationService.Translate(AutoApplyQueuedStatus) :
-            _localizationService.Translate("Ready · Drag ⠿ to reorder");
+            _localizationService.Translate("Ready · Drag the handle to reorder");
         RefreshLayoutSummary();
 
         ApplyWallpaperCommand = new AsyncCommand(

@@ -80,6 +80,9 @@ public partial class MainPage : ContentPage
                 case "Background image":
                     RenderWallpaperBackgroundSettings();
                     break;
+                case "Slideshow interval":
+                    RenderSlideshowIntervalSettings();
+                    break;
                 case "About":
                     RenderAboutSettings();
                     break;
@@ -126,6 +129,7 @@ public partial class MainPage : ContentPage
             "Settings" => "Settings",
             "Language" => "Language",
             "Background image" => "Background image",
+            "Slideshow interval" => "Slideshow interval",
             "About" => "About",
             _ => "Settings"
         };
@@ -134,15 +138,17 @@ public partial class MainPage : ContentPage
             "Settings" => "Manage your app theme, language, custom wallpaper and app information.",
             "Language" => "Choose your preferred language. English is the default.",
             "Background image" => _viewModel.Settings?.BackgroundSummary ?? "The default Locksy background is currently active.",
+            "Slideshow interval" => "Choose how often the background changes. Select an interval below.",
             "About" => "Locksy keeps important tasks visible directly on your Android lock screen. Customize task colors, reminders, theme, layout and background image. Your task list is stored locally on this device.",
             _ => string.Empty
         };
         var icon = page switch
         {
             "Settings" => "settings",
-            "Language" => "Aa",
-            "Background image" => "▧",
-            "About" => "!",
+            "Language" => "language",
+            "Background image" => "background",
+            "Slideshow interval" => "slideshow",
+            "About" => "about",
             _ => "settings"
         };
 
@@ -158,36 +164,20 @@ public partial class MainPage : ContentPage
         ModalMessage.TextColor = PopupColor("#6F7589", "#ADB2C8");
         ModalMessage.IsVisible = !string.IsNullOrWhiteSpace(message);
 
-        var useSettingsIcon = string.Equals(icon, "settings", StringComparison.OrdinalIgnoreCase);
-        ModalIconImage.IsVisible = useSettingsIcon;
-        ModalIconLabel.IsVisible = !useSettingsIcon;
-        if (useSettingsIcon)
-        {
-            ModalIconImage.Source = ImageSource.FromFile("settings_gear.svg");
-            ModalIconImage.WidthRequest = 28;
-            ModalIconImage.HeightRequest = 28;
-        }
-        else
-        {
-            ModalIconLabel.Text = icon;
-            ModalIconLabel.FontSize = icon == "Aa" ? 20 : 22;
-            ModalIconLabel.FontAttributes = FontAttributes.Bold;
-            ModalIconLabel.HorizontalTextAlignment = TextAlignment.Center;
-            ModalIconLabel.VerticalTextAlignment = TextAlignment.Center;
-        }
+        ConfigureModalIcon(icon);
     }
     private void RenderSettingsHome()
     {
         AddThemeToggleRow();
 
-        AddSettingsOption("Language", "Choose English or Persian for the app.", "Aa",
+        AddSettingsOption("Language", "Choose English or Persian for the app.", "language",
             () => NavigateSettingsPageAsync("Language"));
 
         var backgroundSubtitle = _viewModel.Settings?.BackgroundSummary
             ?? "The default Locksy background is currently active.";
-        AddSettingsOption("Background image", backgroundSubtitle, "▧",
+        AddSettingsOption("Background image", backgroundSubtitle, "background",
             () => NavigateSettingsPageAsync("Background image"));
-        AddSettingsOption("About", "App information and project source code.", "!",
+        AddSettingsOption("About", "App information and project source code.", "about",
             () => NavigateSettingsPageAsync("About"));
         BuildSettingsFooter(isHome: true);
     }
@@ -223,8 +213,8 @@ public partial class MainPage : ContentPage
         themeSwitch.Add(new Image
         {
             Source = "theme_sun.svg",
-            WidthRequest = 20,
-            HeightRequest = 20,
+            WidthRequest = StandardIconSize,
+            HeightRequest = StandardIconSize,
             Aspect = Aspect.AspectFit,
             HorizontalOptions = LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Center,
@@ -235,8 +225,8 @@ public partial class MainPage : ContentPage
         themeSwitch.Add(new Image
         {
             Source = "theme_moon.svg",
-            WidthRequest = 20,
-            HeightRequest = 20,
+            WidthRequest = StandardIconSize,
+            HeightRequest = StandardIconSize,
             Aspect = Aspect.AspectFit,
             HorizontalOptions = LayoutOptions.End,
             VerticalOptions = LayoutOptions.Center,
@@ -247,9 +237,9 @@ public partial class MainPage : ContentPage
 
         var activeGlyph = new Image
         {
-            Source = isDark ? "theme_moon_active.svg" : "theme_sun_active.svg",
-            WidthRequest = 23,
-            HeightRequest = 23,
+            Source = isDark ? "theme_moon.svg" : "theme_sun.svg",
+            WidthRequest = StandardIconSize,
+            HeightRequest = StandardIconSize,
             Aspect = Aspect.AspectFit,
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.Center,
@@ -260,27 +250,16 @@ public partial class MainPage : ContentPage
             WidthRequest = thumbSize,
             HeightRequest = thumbSize,
             Margin = new Thickness(4, 0),
-            Background = new LinearGradientBrush
-            {
-                StartPoint = new Point(0, 0),
-                EndPoint = new Point(1, 1),
-                GradientStops =
-                {
-                    new GradientStop(Color.FromArgb("#A18CFF"), 0f),
-                    new GradientStop(Color.FromArgb("#7962E8"), 1f)
-                }
-            },
-            Stroke = new SolidColorBrush(Color.FromArgb("#C3B6FF")),
+            BackgroundColor = PopupColor("#F8F9FD", "#222333"),
+            Stroke = new SolidColorBrush(Color.FromArgb("#8875E8")),
             StrokeThickness = 0.8,
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(thumbSize / 2) },
             Shadow = new Shadow
             {
-                Brush = new SolidColorBrush(isDark
-                    ? Colors.Transparent
-                    : Color.FromArgb("#6551C7")),
-                Offset = isDark ? Point.Zero : new Point(0, 3),
-                Radius = isDark ? 0 : 6,
-                Opacity = isDark ? 0f : 0.42f
+                Brush = new SolidColorBrush(isDark ? Colors.Transparent : Color.FromArgb("#8875E8")),
+                Offset = isDark ? Point.Zero : new Point(0, 2),
+                Radius = isDark ? 0 : 4,
+                Opacity = isDark ? 0f : 0.22f
             },
             HorizontalOptions = LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Center,
@@ -372,7 +351,7 @@ public partial class MainPage : ContentPage
         {
             track.BackgroundColor = isDark ? Color.FromArgb("#29243D") : Color.FromArgb("#E8E1FF");
             track.Stroke = new SolidColorBrush(isDark ? Color.FromArgb("#66568F") : Color.FromArgb("#C6B8FF"));
-            activeGlyph.Source = isDark ? "theme_moon_active.svg" : "theme_sun_active.svg";
+            activeGlyph.Source = isDark ? "theme_moon.svg" : "theme_sun.svg";
             // Keep the movement compact and deterministic. Previously the theme change
             // followed a long multi-stage animation and also refreshed every task row,
             // which caused a noticeable pause when switching from dark to light.
@@ -402,7 +381,7 @@ public partial class MainPage : ContentPage
     private void RenderLanguageSettings()
     {
         var isPersian = LocalizationService.IsPersian;
-        AddSettingsOption("English", "Use the default English interface.", "EN",
+        AddSettingsOption("English", "Use the default English interface.", "language-en",
             async () =>
             {
                 if (LocalizationService.IsPersian)
@@ -411,7 +390,7 @@ public partial class MainPage : ContentPage
                         _viewModel.Settings?.SetLanguageCommand.Execute("en");
                     });
             }, isSelected: !isPersian);
-        AddSettingsOption("فارسی", "Use the Persian right-to-left interface.", "فا",
+        AddSettingsOption("فارسی", "Use the Persian right-to-left interface.", "language-fa",
             async () =>
             {
                 if (!LocalizationService.IsPersian)
@@ -431,18 +410,20 @@ public partial class MainPage : ContentPage
             return;
         }
 
-        AddSettingsOption("Default Locksy background", "Use the original Locksy gradient and grid.", "◉",
+        AddSettingsOption("Default Locksy background", "Use the original Locksy gradient and grid.", "default-background",
             async () =>
             {
                 settings.SelectDefaultBackground();
                 await NavigateSettingsPageAsync("Background image", animate: false);
-            }, isSelected: settings.BackgroundMode == WallpaperBackgroundMode.Default);
+            }, isSelected: settings.BackgroundMode == WallpaperBackgroundMode.Default,
+            iconImageSize: 30, iconContainerSize: 48);
         if (settings.BackgroundMode == WallpaperBackgroundMode.Default)
             AddCurrentWallpaperBackgroundPreview(settings);
 
-        AddSettingsOption("Choose one photo", "Use one photo and crop it to fill the lock screen.", "▧",
+        AddSettingsOption("Choose one photo", "Use one photo and crop it to fill the lock screen.", "photo-add",
             PickCustomBackgroundWithinSettingsAsync,
-            isSelected: settings.BackgroundMode == WallpaperBackgroundMode.CustomImage);
+            isSelected: settings.BackgroundMode == WallpaperBackgroundMode.CustomImage,
+            iconImageSize: 30, iconContainerSize: 48);
         if (settings.BackgroundMode == WallpaperBackgroundMode.CustomImage)
             AddCurrentWallpaperBackgroundPreview(settings);
 
@@ -454,9 +435,10 @@ public partial class MainPage : ContentPage
             AddCurrentWallpaperBackgroundPreview(settings);
 
         ModalBody.Children.Add(CreateSettingsSectionLabel("Slideshow"));
-        AddSettingsOption("Choose multiple photos", "Add several photos from your device to the slideshow.", "▧",
-            ChooseSlideshowImagesWithinSettingsAsync);
-        AddSettingsOption("Use slideshow", "Cycle through your selected photos and built-in backgrounds.", "↻",
+        AddSettingsOption("Choose multiple photos", "Add several photos from your device to the slideshow.", "multiple-photos",
+            ChooseSlideshowImagesWithinSettingsAsync,
+            iconImageSize: 30, iconContainerSize: 48);
+        AddSettingsOption("Use slideshow", "Cycle through your selected photos and built-in backgrounds.", "slideshow",
             async () =>
             {
                 if (settings.ActivateSlideshow())
@@ -468,7 +450,8 @@ public partial class MainPage : ContentPage
                 SetModalMessageText(LocalizationService.Translate("Add at least two backgrounds to start a slideshow."));
                 ModalMessage.TextColor = Color.FromArgb("#D45C72");
                 ModalMessage.IsVisible = true;
-            }, isSelected: settings.IsSlideshowSelected);
+            }, isSelected: settings.IsSlideshowSelected,
+            iconImageSize: 30, iconContainerSize: 48);
         if (settings.IsSlideshowSelected)
             AddCurrentWallpaperBackgroundPreview(settings);
 
@@ -651,16 +634,14 @@ public partial class MainPage : ContentPage
         };
         row.Add(useButton, 2, 0);
 
-        var addButton = new Button
+        var addButton = new ImageButton
         {
-            Text = "+",
-            FontSize = 22,
-            FontAttributes = FontAttributes.Bold,
-            Padding = 0,
+            Source = "icon_plus.svg",
+            Aspect = Aspect.AspectFit,
+            Padding = 6,
             WidthRequest = 34,
             HeightRequest = 34,
             BackgroundColor = PopupColor("#E2E7F1", "#303042"),
-            TextColor = Color.FromArgb("#8A76EB"),
             CornerRadius = 10,
             VerticalOptions = LayoutOptions.Center
         };
@@ -686,27 +667,19 @@ public partial class MainPage : ContentPage
 
     private void AddSlideshowIntervalPicker(SettingsViewModel settings)
     {
-        var intervals = new[] { 5, 10, 15, 30, 60 };
-        var picker = new Picker
+        var currentInterval = LocalizedDisplayText($"Every {settings.SlideshowIntervalMinutes} minutes");
+        var row = new Grid
         {
-            Title = LocalizedDisplayText("Slideshow interval"),
-            FontSize = 13,
-            TextColor = PopupColor("#303545", "#F1F2FA"),
-            TitleColor = PopupColor("#7E8599", "#9FA5BC"),
-            BackgroundColor = Colors.Transparent,
-            HorizontalOptions = LayoutOptions.Fill,
-            VerticalOptions = LayoutOptions.Center
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(new GridLength(24))
+            },
+            ColumnSpacing = 8,
+            Padding = new Thickness(12, 10),
+            FlowDirection = LocalizationService.CurrentFlowDirection
         };
-        foreach (var interval in intervals)
-            picker.Items.Add(LocalizedDisplayText($"Every {interval} minutes"));
-        var selectedIndex = Array.IndexOf(intervals, settings.SlideshowIntervalMinutes);
-        picker.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
-        picker.SelectedIndexChanged += (_, _) =>
-        {
-            if (picker.SelectedIndex >= 0 && picker.SelectedIndex < intervals.Length)
-                settings.SetSlideshowIntervalMinutes(intervals[picker.SelectedIndex]);
-        };
-        var row = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(new GridLength(150)) }, ColumnSpacing = 8 };
         row.Add(new Label
         {
             Text = LocalizedDisplayText("Change every"),
@@ -716,16 +689,158 @@ public partial class MainPage : ContentPage
             VerticalTextAlignment = TextAlignment.Center,
             FlowDirection = LocalizationService.CurrentFlowDirection
         }, 0, 0);
-        row.Add(picker, 1, 0);
-        ModalBody.Children.Add(new Border
+        row.Add(new Label
         {
-            Padding = new Thickness(10, 3),
+            Text = currentInterval,
+            FontSize = 12,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = PopupColor("#8875E8", "#B7A9FF"),
+            VerticalTextAlignment = TextAlignment.Center,
+            HorizontalTextAlignment = TextAlignment.End,
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        }, 1, 0);
+        row.Add(new Image
+        {
+            Source = ImageSource.FromFile("icon_chevron_down.svg"),
+            WidthRequest = 22,
+            HeightRequest = 22,
+            Aspect = Aspect.AspectFit,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
+        }, 2, 0);
+
+        var card = new Border
+        {
+            Padding = 0,
             BackgroundColor = PopupColor("#E9EAF2", "#20212E"),
             Stroke = new SolidColorBrush(PopupColor("#D1D6E3", "#38394C")),
             StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
+            Shadow = CreateNeumorphicShadow(0.24f),
             Content = row
+        };
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, _) =>
+        {
+            if (_settingsTransitionRunning || _popupCompletionSource is null)
+                return;
+            await NavigateSettingsPageAsync("Slideshow interval", animate: true);
+        };
+        card.GestureRecognizers.Add(tap);
+        SemanticProperties.SetDescription(card, LocalizedDisplayText("Change slideshow interval"));
+        ModalBody.Children.Add(card);
+    }
+
+    private void RenderSlideshowIntervalSettings()
+    {
+        var settings = _viewModel.Settings;
+        if (settings is null)
+        {
+            BuildSettingsFooter(isHome: false, backLabelOverride: "Back to background", backPageOverride: "Background image");
+            return;
+        }
+
+        ModalBody.Children.Add(new Label
+        {
+            Text = LocalizedDisplayText("Tap an interval to select it."),
+            FontSize = 12,
+            TextColor = PopupColor("#77718D", "#B5ADC9"),
+            Margin = new Thickness(2, 0, 2, 6),
+            FlowDirection = LocalizationService.CurrentFlowDirection
         });
+
+        foreach (var interval in new[] { 5, 10, 15, 30, 60 })
+            AddSlideshowIntervalOption(settings, interval);
+
+        BuildSettingsFooter(isHome: false, backLabelOverride: "Back to background", backPageOverride: "Background image");
+    }
+
+    private void AddSlideshowIntervalOption(SettingsViewModel settings, int minutes)
+    {
+        var isSelected = settings.SlideshowIntervalMinutes == minutes;
+        var row = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(new GridLength(30)),
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(new GridLength(24))
+            },
+            ColumnSpacing = 10,
+            Padding = new Thickness(13, 10),
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        };
+
+        var bullet = new Border
+        {
+            WidthRequest = 20,
+            HeightRequest = 20,
+            Padding = 0,
+            BackgroundColor = isSelected ? Color.FromArgb("#8875E8") : Colors.Transparent,
+            Stroke = new SolidColorBrush(isSelected ? Color.FromArgb("#8875E8") : PopupColor("#AEB6C8", "#666B83")),
+            StrokeThickness = 1.5,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
+        };
+        if (isSelected)
+        {
+            bullet.Content = new Border
+            {
+                WidthRequest = 6,
+                HeightRequest = 6,
+                BackgroundColor = Colors.White,
+                StrokeThickness = 0,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(3) },
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
+            };
+        }
+        row.Add(bullet, 0, 0);
+        row.Add(new Label
+        {
+            Text = LocalizedDisplayText($"Every {minutes} minutes"),
+            FontSize = 13,
+            FontAttributes = isSelected ? FontAttributes.Bold : FontAttributes.None,
+            TextColor = PopupColor(isSelected ? "#5946B2" : "#3F4559", isSelected ? "#C3B8FF" : "#E5E7F5"),
+            VerticalTextAlignment = TextAlignment.Center,
+            FlowDirection = LocalizationService.CurrentFlowDirection
+        }, 1, 0);
+        if (isSelected)
+        {
+            row.Add(new Image
+            {
+                Source = ImageSource.FromFile("icon_check.svg"),
+                WidthRequest = 22,
+                HeightRequest = 22,
+                Aspect = Aspect.AspectFit,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
+            }, 2, 0);
+        }
+
+        var card = new Border
+        {
+            Padding = 0,
+            BackgroundColor = isSelected ? PopupColor("#E6E0FF", "#332D49") : PopupColor("#F0F2F8", "#252736"),
+            Stroke = new SolidColorBrush(isSelected ? PopupColor("#AA9AF2", "#65558F") : PopupColor("#D1D9E5", "#383A4D")),
+            StrokeThickness = isSelected ? 1.3 : 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
+            Shadow = CreateNeumorphicShadow(isSelected ? 0.40f : 0.24f),
+            Content = row
+        };
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, _) =>
+        {
+            if (_settingsTransitionRunning || _popupCompletionSource is null)
+                return;
+            if (!isSelected)
+                settings.SetSlideshowIntervalMinutes(minutes);
+            await NavigateSettingsPageAsync("Background image", animate: true, reverse: true);
+        };
+        card.GestureRecognizers.Add(tap);
+        SemanticProperties.SetDescription(card, LocalizedDisplayText($"Every {minutes} minutes"));
+        ModalBody.Children.Add(card);
     }
 
     private void AddSlideshowItems(SettingsViewModel settings)
@@ -806,16 +921,14 @@ public partial class MainPage : ContentPage
                 VerticalTextAlignment = TextAlignment.Center,
                 LineBreakMode = LineBreakMode.TailTruncation
             }, 1, 0);
-            var remove = new Button
+            var remove = new ImageButton
             {
-                Text = "×",
-                FontSize = 22,
-                FontAttributes = FontAttributes.Bold,
-                Padding = 0,
+                Source = "locksy_trash_icon.svg",
+                Aspect = Aspect.AspectFit,
+                Padding = 5,
                 WidthRequest = 32,
                 HeightRequest = 32,
                 BackgroundColor = PopupColor("#FCE9ED", "#3A222E"),
-                TextColor = PopupColor("#A83E59", "#FFC1D0"),
                 CornerRadius = 10,
                 VerticalOptions = LayoutOptions.Center
             };
@@ -906,7 +1019,7 @@ public partial class MainPage : ContentPage
         repositoryTap.Tapped += async (_, _) => await OpenGitHubFromSettingsAsync();
         repositoryLink.GestureRecognizers.Add(repositoryTap);
         ModalBody.Children.Add(repositoryLink);
-        AddSettingsOption("Open GitHub repository", "View the Locksy source code on GitHub.", "↗",
+        AddSettingsOption("Open GitHub repository", "View the Locksy source code on GitHub.", "github",
             OpenGitHubFromSettingsAsync);
         BuildSettingsFooter(isHome: false);
     }
@@ -929,7 +1042,9 @@ public partial class MainPage : ContentPage
         string subtitle,
         string icon,
         Func<Task> onSelected,
-        bool isSelected = false)
+        bool isSelected = false,
+        double iconImageSize = StandardIconSize,
+        double iconContainerSize = 42)
     {
         var row = new Grid
         {
@@ -937,29 +1052,49 @@ public partial class MainPage : ContentPage
             Padding = new Thickness(10, 9),
             VerticalOptions = LayoutOptions.Fill
         };
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(44)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Math.Max(44d, iconContainerSize + 2d))));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(18)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(22)));
 
-        var iconLabel = new Label
+        Microsoft.Maui.Controls.View iconContent;
+        if (IsLanguageBadgeIcon(icon))
         {
-            Text = icon,
-            FontSize = 20,
-            FontAttributes = FontAttributes.Bold,
-            TextColor = isSelected ? Colors.White : Color.FromArgb("#8A76EB"),
-            HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
-            VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
-        };
+            iconContent = new Label
+            {
+                Text = LanguageBadgeText(icon),
+                FontSize = 14,
+                FontAttributes = FontAttributes.Bold,
+                CharacterSpacing = 0.25,
+                TextColor = PopupColor("#8875E8", "#B7A9FF"),
+                FlowDirection = Microsoft.Maui.FlowDirection.LeftToRight,
+                HorizontalTextAlignment = TextAlignment.Center,
+                VerticalTextAlignment = TextAlignment.Center,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
+            };
+        }
+        else
+        {
+            iconContent = new Image
+            {
+                Source = ImageSource.FromFile(IconSourceFor(icon)),
+                WidthRequest = iconImageSize,
+                HeightRequest = iconImageSize,
+                Aspect = Aspect.AspectFit,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
+            };
+        }
         row.Add(new Border
         {
-            WidthRequest = 42,
-            HeightRequest = 42,
+            WidthRequest = iconContainerSize,
+            HeightRequest = iconContainerSize,
             Padding = 0,
-            BackgroundColor = isSelected ? Color.FromArgb("#8875E8") : PopupColor("#E2E7F1", "#2A2C3D"),
+            BackgroundColor = PopupColor("#E2E7F1", "#2A2C3D"),
             Stroke = new SolidColorBrush(isSelected ? Color.FromArgb("#8875E8") : PopupColor("#D1D9E5", "#383A4D")),
             StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
-            Content = iconLabel,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(iconContainerSize >= 46 ? 14 : 12) },
+            Content = iconContent,
             VerticalOptions = LayoutOptions.Center
         }, 0, 0);
 
@@ -985,14 +1120,15 @@ public partial class MainPage : ContentPage
         labels.Children.Add(titleLabel);
         labels.Children.Add(subtitleLabel);
         row.Add(labels, 1, 0);
-        row.Add(new Label
+        row.Add(new Image
         {
-            Text = isSelected ? "✓" : (LocalizationService.IsPersian ? "‹" : "›"),
-            FontSize = 22,
-            FontAttributes = FontAttributes.Bold,
-            TextColor = isSelected ? Color.FromArgb("#8A76EB") : PopupColor("#A29AB7", "#9189A8"),
-            HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
-            VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
+            Source = ImageSource.FromFile(isSelected ? "icon_check.svg" : "icon_chevron_right.svg"),
+            WidthRequest = StandardIconSize,
+            HeightRequest = StandardIconSize,
+            Aspect = Aspect.AspectFit,
+            Rotation = !isSelected && LocalizationService.IsPersian ? 180 : 0,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
         }, 2, 0);
 
         var border = new Border
@@ -1014,7 +1150,10 @@ public partial class MainPage : ContentPage
         border.GestureRecognizers.Add(tap);
         ModalBody.Children.Add(border);
     }
-    private void BuildSettingsFooter(bool isHome)
+    private void BuildSettingsFooter(
+        bool isHome,
+        string? backLabelOverride = null,
+        string? backPageOverride = null)
     {
         if (isHome)
         {
@@ -1025,8 +1164,10 @@ public partial class MainPage : ContentPage
         var actions = new Grid { ColumnSpacing = 9 };
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        actions.Add(CreatePopupAction("Back to settings", null, primary: false, destructive: false,
-            customAction: async () => await NavigateSettingsPageAsync("Settings", animate: true, reverse: true)), 0, 0);
+        var backLabel = backLabelOverride ?? "Back to settings";
+        var backPage = backPageOverride ?? "Settings";
+        actions.Add(CreatePopupAction(backLabel, null, primary: false, destructive: false,
+            customAction: async () => await NavigateSettingsPageAsync(backPage, animate: true, reverse: true)), 0, 0);
         actions.Add(CreatePopupAction("Close", null, primary: true, destructive: false), 1, 0);
         ModalButtons.Children.Add(actions);
     }

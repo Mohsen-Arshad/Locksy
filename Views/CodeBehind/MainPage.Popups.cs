@@ -51,12 +51,12 @@ public partial class MainPage : ContentPage
         ModalTitle.Opacity = opacity;
         ModalMessage.Opacity = opacity;
         ModalIconImage.Opacity = opacity;
-        ModalIconLabel.Opacity = opacity;
+        ModalIconTextLabel.Opacity = opacity;
         ModalSectionLabel.TranslationX = translationX;
         ModalTitle.TranslationX = translationX;
         ModalMessage.TranslationX = translationX;
         ModalIconImage.TranslationX = translationX;
-        ModalIconLabel.TranslationX = translationX;
+        ModalIconTextLabel.TranslationX = translationX;
     }
     private Task AnimatePopupHeaderAsync(double opacity, double translationX, uint duration, Easing easing)
     {
@@ -65,14 +65,88 @@ public partial class MainPage : ContentPage
             ModalTitle.FadeTo(opacity, duration, easing),
             ModalMessage.FadeTo(opacity, duration, easing),
             ModalIconImage.FadeTo(opacity, duration, easing),
-            ModalIconLabel.FadeTo(opacity, duration, easing),
+            ModalIconTextLabel.FadeTo(opacity, duration, easing),
             ModalSectionLabel.TranslateTo(translationX, 0, duration, easing),
             ModalTitle.TranslateTo(translationX, 0, duration, easing),
             ModalMessage.TranslateTo(translationX, 0, duration, easing),
             ModalIconImage.TranslateTo(translationX, 0, duration, easing),
-            ModalIconLabel.TranslateTo(translationX, 0, duration, easing));
+            ModalIconTextLabel.TranslateTo(translationX, 0, duration, easing));
     }
-    private TaskCompletionSource<string?> BeginPopup(string title, string message, string icon = "✦")
+    private const double StandardIconSize = 30d;
+
+    private static bool IsLanguageBadgeIcon(string key) => key.Trim().ToLowerInvariant() is
+            "language-en" or "language-fa";
+
+    private string LanguageBadgeText(string key) => key.Trim().ToLowerInvariant() switch
+    {
+        "language-en" => "EN",
+        "language-fa" => "FA",
+        _ => LocalizationService.IsPersian ? "FA" : "EN"
+    };
+
+    private void ConfigureModalIcon(string key)
+    {
+        if (IsLanguageBadgeIcon(key))
+        {
+            ModalIconImage.IsVisible = false;
+            ModalIconTextLabel.Text = LanguageBadgeText(key);
+            ModalIconTextLabel.TextColor = PopupColor("#8875E8", "#B7A9FF");
+            ModalIconTextLabel.WidthRequest = 30;
+            ModalIconTextLabel.HeightRequest = 30;
+            ModalIconTextLabel.FontSize = 14;
+            ModalIconTextLabel.FontAttributes = FontAttributes.Bold;
+            ModalIconTextLabel.Opacity = ModalIconImage.Opacity;
+            ModalIconTextLabel.TranslationX = ModalIconImage.TranslationX;
+            ModalIconTextLabel.IsVisible = true;
+            return;
+        }
+
+        ModalIconTextLabel.IsVisible = false;
+        ModalIconImage.Source = ImageSource.FromFile(IconSourceFor(key));
+        ModalIconImage.WidthRequest = StandardIconSize;
+        ModalIconImage.HeightRequest = StandardIconSize;
+        ModalIconImage.IsVisible = true;
+        ModalIconImage.Aspect = Aspect.AspectFit;
+        ModalIconImage.HorizontalOptions = LayoutOptions.Center;
+        ModalIconImage.VerticalOptions = LayoutOptions.Center;
+    }
+
+    private static string IconSourceFor(string key) => key.Trim().ToLowerInvariant() switch
+    {
+        "settings" => "icon_settings.svg",
+        "options" => "locksy_options_icon.svg",
+        "language" => "icon_language.svg",
+        "alarm" => "locksy_alarm_icon.svg",
+        "edit" or "pencil" => "locksy_edit_icon.svg",
+        "palette" or "color" => "locksy_palette_icon.svg",
+        "trash" or "delete" or "remove" => "locksy_trash_icon.svg",
+        "direction" => "locksy_text_direction_icon.svg",
+        "direction-auto" => "icon_direction_auto.svg",
+        "direction-ltr" => "icon_direction_ltr.svg",
+        "direction-rtl" => "icon_direction_rtl.svg",
+        "background" or "photo" => "icon_photo.svg",
+        "photo-add" => "icon_photo_add.svg",
+        "default-background" => "icon_default_background.svg",
+        "multiple-photos" => "icon_multiple_photos.svg",
+        "wallpaper" => "icon_wallpaper.svg",
+        "about" or "info" => "icon_info.svg",
+        "layout" or "placement" => "icon_layout.svg",
+        "preview" => "icon_preview.svg",
+        "check" or "success" => "icon_check.svg",
+        "alert" or "error" or "warning" => "icon_alert.svg",
+        "help" or "question" => "icon_help.svg",
+        "plus" or "add" => "icon_plus.svg",
+        "reorder" => "icon_reorder.svg",
+        "more" => "icon_more.svg",
+        "chevron-down" => "icon_chevron_down.svg",
+        "chevron-right" => "icon_chevron_right.svg",
+        "slideshow" => "icon_slideshow.svg",
+        "github" => "icon_github.svg",
+        "task" => "icon_task.svg",
+        _ => "icon_info.svg"
+    };
+
+    private TaskCompletionSource<string?> BeginPopup(string title, string message, string icon = "info")
     {
         // A nested action can finish its result while keeping the modal surface open.
         // The next popup then replaces the content and animates inside the same card.
@@ -95,41 +169,27 @@ public partial class MainPage : ContentPage
         ModalTitle.FlowDirection = LocalizationService.CurrentFlowDirection;
         ModalSectionLabel.FlowDirection = LocalizationService.CurrentFlowDirection;
         ModalTitle.Text = LocalizedDisplayText(title);
+        var destructiveHeaderIcon = icon.Equals("trash", StringComparison.OrdinalIgnoreCase)
+            || icon.Equals("delete", StringComparison.OrdinalIgnoreCase)
+            || icon.Equals("remove", StringComparison.OrdinalIgnoreCase);
+        ModalIconContainer.WidthRequest = destructiveHeaderIcon ? 34 : 44;
+        ModalIconContainer.HeightRequest = destructiveHeaderIcon ? 34 : 44;
+        ModalIconContainer.BackgroundColor = destructiveHeaderIcon
+            ? PopupColor("#FCE9ED", "#3A222E")
+            : PopupColor("#F0F2F8", "#252736");
+        ModalIconContainer.Stroke = new SolidColorBrush(
+            destructiveHeaderIcon
+                ? PopupColor("#D1D9E5", "#383A4D")
+                : PopupColor("#D4DBE7", "#383A4D"));
+        ModalIconContainer.StrokeThickness = 1;
+        ModalIconContainer.StrokeShape = new RoundRectangle
+        {
+            CornerRadius = new CornerRadius(destructiveHeaderIcon ? 11 : 15)
+        };
+        ConfigureModalIcon(icon);
         SetModalMessageText(message);
         ModalMessage.TextColor = PopupColor("#6F7589", "#ADB2C8");
         ModalMessage.IsVisible = !string.IsNullOrWhiteSpace(message);
-        var useOptionsIcon = string.Equals(icon, "options", StringComparison.OrdinalIgnoreCase);
-        var useAlarmIcon = string.Equals(icon, "alarm", StringComparison.OrdinalIgnoreCase)
-            || icon is "◷" or "⏰";
-        var useSettingsIcon = string.Equals(icon, "settings", StringComparison.OrdinalIgnoreCase);
-        var useVectorIcon = useOptionsIcon || useAlarmIcon || useSettingsIcon;
-        ModalIconImage.IsVisible = useVectorIcon;
-        ModalIconLabel.IsVisible = !useVectorIcon;
-        if (useOptionsIcon)
-        {
-            ModalIconImage.Source = ImageSource.FromFile("locksy_options_icon.svg");
-            ModalIconImage.WidthRequest = 23;
-            ModalIconImage.HeightRequest = 23;
-        }
-        else if (useAlarmIcon)
-        {
-            ModalIconImage.Source = ImageSource.FromFile("locksy_alarm_icon.svg");
-            ModalIconImage.WidthRequest = 23;
-            ModalIconImage.HeightRequest = 23;
-        }
-        else if (useSettingsIcon)
-        {
-            ModalIconImage.Source = ImageSource.FromFile("settings_gear.svg");
-            ModalIconImage.WidthRequest = 28;
-            ModalIconImage.HeightRequest = 28;
-        }
-        else
-        {
-            ModalIconLabel.Text = icon;
-            ModalIconImage.WidthRequest = 23;
-            ModalIconImage.HeightRequest = 23;
-        }
-        ModalIconLabel.FontSize = 22;
         ModalBody.Children.Clear();
         ModalButtons.Children.Clear();
         _ = ModalBodyScroll.ScrollToAsync(0, 0, false);
@@ -200,7 +260,7 @@ public partial class MainPage : ContentPage
         IReadOnlyList<string> choices,
         string cancelLabel = "Cancel",
         IReadOnlyList<string>? icons = null,
-        string popupIcon = "✦",
+        string popupIcon = "task",
         bool keepOpenOnSelection = false)
     {
         var completion = BeginPopup(title, message, popupIcon);
@@ -222,7 +282,7 @@ public partial class MainPage : ContentPage
         bool keepModalOpenOnCompletion = false,
         TaskTextDirection textDirection = TaskTextDirection.Auto)
     {
-        var completion = BeginPopup(title, message, "✎");
+        var completion = BeginPopup(title, message, "edit");
         // Keep task editing more compact than the generic dialogs, but provide a real
         // multi-line editor with its own scrolling for long task descriptions.
         _popupPreferredWidth = keepModalOpenOnCompletion ? 380d : 300d;
@@ -289,7 +349,7 @@ public partial class MainPage : ContentPage
     }
     private async Task<bool> ShowConfirmationPopupAsync(string title, string message, string confirmLabel, bool destructive = false, bool keepModalOpenOnDismiss = false)
     {
-        var completion = BeginPopup(title, message, destructive ? "⌫" : "?");
+        var completion = BeginPopup(title, message, destructive ? "trash" : "help");
         var actions = new Grid { ColumnSpacing = 9 };
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -310,7 +370,7 @@ public partial class MainPage : ContentPage
     }
     private async Task ShowInfoPopupAsync(string title, string message, bool isError = false, byte[]? previewBytes = null, bool keepModalOpenOnDismiss = false)
     {
-        var completion = BeginPopup(title, message, isError ? "!" : "✓");
+        var completion = BeginPopup(title, message, isError ? "alert" : "check");
         if (!isError && previewBytes is { Length: > 0 })
         {
             var previewImage = new Image
@@ -392,37 +452,17 @@ public partial class MainPage : ContentPage
         var row = new Grid { ColumnSpacing = 11, Padding = new Thickness(11, 8) };
         row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(34)));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(14)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(22)));
 
-        View iconContent;
-        var vectorIconSource = TaskActionIconSource(icon);
-        if (vectorIconSource is not null)
+        var iconContent = new Image
         {
-            // The text-direction glyph needs a little more visual weight than the other action icons.
-            // Render it as SVG so its optical center does not depend on font baseline metrics.
-            var iconSize = 21d;
-            iconContent = new Image
-            {
-                Source = ImageSource.FromFile(vectorIconSource),
-                WidthRequest = iconSize,
-                HeightRequest = iconSize,
-                Aspect = Aspect.AspectFit,
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions = LayoutOptions.Center
-            };
-        }
-        else
-        {
-            iconContent = new Label
-            {
-                Text = icon,
-                FontSize = 20,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = destructive ? PopupColor("#A83E59", "#FFC1D0") : Color.FromArgb("#8A76EB"),
-                HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center,
-                VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center
-            };
-        }
+            Source = ImageSource.FromFile(IconSourceFor(destructive ? "trash" : icon)),
+            WidthRequest = StandardIconSize,
+            HeightRequest = StandardIconSize,
+            Aspect = Aspect.AspectFit,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
+        };
 
         var iconBack = new Border
         {
@@ -446,14 +486,15 @@ public partial class MainPage : ContentPage
             VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center,
             LineBreakMode = LineBreakMode.WordWrap
         }, 1, 0);
-        row.Add(new Label
+        row.Add(new Image
         {
-            Text = LocalizationService.IsPersian ? "‹" : "›",
-            FontSize = 22,
-            FontAttributes = FontAttributes.Bold,
-            TextColor = PopupColor("#A29AB7", "#9189A8"),
-            VerticalTextAlignment = Microsoft.Maui.TextAlignment.Center,
-            HorizontalTextAlignment = Microsoft.Maui.TextAlignment.Center
+            Source = ImageSource.FromFile("icon_chevron_right.svg"),
+            WidthRequest = StandardIconSize,
+            HeightRequest = StandardIconSize,
+            Aspect = Aspect.AspectFit,
+            Rotation = LocalizationService.IsPersian ? 180 : 0,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
         }, 2, 0);
 
         var border = new Border
@@ -481,18 +522,15 @@ public partial class MainPage : ContentPage
     {
         if (value.Contains("edit", StringComparison.OrdinalIgnoreCase)) return "edit";
         if (value.Contains("color", StringComparison.OrdinalIgnoreCase) || value.Contains("palette", StringComparison.OrdinalIgnoreCase)) return "palette";
+        if (value.Contains("alarm", StringComparison.OrdinalIgnoreCase) || value.Contains("reminder", StringComparison.OrdinalIgnoreCase)) return "alarm";
+        if (value.Contains("direction", StringComparison.OrdinalIgnoreCase)) return "direction";
+        if (value.Contains("language", StringComparison.OrdinalIgnoreCase)) return "language";
+        if (value.Contains("photo", StringComparison.OrdinalIgnoreCase) || value.Contains("background", StringComparison.OrdinalIgnoreCase)) return "photo";
         if (value.Contains("delete", StringComparison.OrdinalIgnoreCase) || value.Contains("remove", StringComparison.OrdinalIgnoreCase)) return "trash";
-        return index switch { 0 => "✦", 1 => "◈", 2 => "○", _ => "•" };
+        if (value.Contains("github", StringComparison.OrdinalIgnoreCase) || value.Contains("repository", StringComparison.OrdinalIgnoreCase)) return "github";
+        return index switch { 0 => "task", 1 => "options", 2 => "palette", _ => "info" };
     }
-    private static string? TaskActionIconSource(string icon) => icon switch
-    {
-        "↔" => "locksy_text_direction_icon.svg",
-        "edit" => "locksy_edit_icon.svg",
-        "palette" => "locksy_palette_icon.svg",
-        "alarm" => "locksy_alarm_icon.svg",
-        "trash" => "locksy_trash_icon.svg",
-        _ => null
-    };
+
     private void ModalBackdrop_Tapped(object? sender, TappedEventArgs e)
     {
         // Backdrop taps follow the same parent-navigation rules as Android Back:
