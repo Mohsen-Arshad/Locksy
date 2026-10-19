@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Locksy.Helpers;
 using Locksy.Models;
 using Locksy.Platforms.Android;
@@ -85,8 +85,8 @@ public partial class MainPage : ContentPage
                         _viewModel.NewTaskSettings.Reset();
                         _wallpaperViewModel.StatusMessage = created!.IsReminderActive
                             ? (LocalizationService.IsPersian
-                                ? LocalizationService.LocalizeDigits($"یادآور اضافه شد · زنگ {created.ReminderAt:yyyy/MM/dd HH:mm}")
-                                : $"Reminder added · alarm {created.ReminderAt:dd MMM, HH:mm}.")
+                                ? LocalizationService.LocalizeDigits($"ÛŒØ§Ø¯Ø¢ÙˆØ± Ø§Ø¶Ø§ÙÙ‡ Ø´Ø¯ Â· Ø²Ù†Ú¯ {created.ReminderAt:yyyy/MM/dd HH:mm}")
+                                : $"Reminder added Â· alarm {created.ReminderAt:dd MMM, HH:mm}.")
                             : LocalizationService.Translate("Reminder added.");
                     }
                 }
@@ -432,7 +432,7 @@ public partial class MainPage : ContentPage
 
         bool ValidateDraft(bool adding)
         {
-            if (reminderAlarmEnabled && (datePicker.Date.Date + timePicker.Time) <= DateTime.Now)
+            if (reminderAlarmEnabled && ((datePicker.Date ?? DateTime.Today).Date.Add(timePicker.Time ?? TimeSpan.Zero)) <= DateTime.Now)
             {
                 SetModalMessageText("Choose a future date and time for the alarm.");
                 ModalMessage.IsVisible = true;
@@ -472,7 +472,7 @@ public partial class MainPage : ContentPage
             selectedPaletteKey,
             reminderAlarmEnabled,
             reminderAlarmEnabled
-                ? DateTime.SpecifyKind(datePicker.Date.Date + timePicker.Time, DateTimeKind.Local)
+                ? DateTime.SpecifyKind((datePicker.Date ?? DateTime.Today).Date.Add(timePicker.Time ?? TimeSpan.Zero), DateTimeKind.Local)
                 : null);
 
         if (result == "SAVE_SETTINGS")
@@ -641,8 +641,8 @@ public partial class MainPage : ContentPage
                         var confirmed = await ShowConfirmationPopupAsync(
                             "Delete this task?",
                             LocalizationService.IsPersian
-                                ? $"حذف «{task.Title}» از فهرست؟ این کار قابل بازگشت نیست."
-                                : $"Remove ‘{task.Title}’ from your list? This can’t be undone.",
+                                ? $"Ø­Ø°Ù Â«{task.Title}Â» Ø§Ø² ÙÙ‡Ø±Ø³ØªØŸ Ø§ÛŒÙ† Ú©Ø§Ø± Ù‚Ø§Ø¨Ù„ Ø¨Ø§Ø²Ú¯Ø´Øª Ù†ÛŒØ³Øª."
+                                : $"Remove â€˜{task.Title}â€™ from your list? This canâ€™t be undone.",
                             "Delete task",
                             destructive: true,
                             keepModalOpenOnDismiss: true);
@@ -671,7 +671,7 @@ public partial class MainPage : ContentPage
     {
         var value = await ShowPromptPopupAsync(
             "Edit task",
-            "Make the change and save when you’re ready.",
+            "Make the change and save when youâ€™re ready.",
             placeholder: LocalizationService.Translate("Task text"),
             maxLength: 300,
             initialValue: task.Title,
@@ -778,7 +778,7 @@ public partial class MainPage : ContentPage
             {
                 if (enabled.IsToggled)
                 {
-                    var candidate = DateTime.SpecifyKind(datePicker.Date.Date + timePicker.Time, DateTimeKind.Local);
+                    var candidate = DateTime.SpecifyKind((datePicker.Date ?? DateTime.Today).Date.Add(timePicker.Time ?? TimeSpan.Zero), DateTimeKind.Local);
                     if (candidate <= DateTime.Now)
                     {
                         SetModalMessageText("The alarm time must be later than the current time.");
@@ -805,7 +805,7 @@ public partial class MainPage : ContentPage
             return;
         }
 
-        var scheduledAt = DateTime.SpecifyKind(datePicker.Date.Date + timePicker.Time, DateTimeKind.Local);
+        var scheduledAt = DateTime.SpecifyKind((datePicker.Date ?? DateTime.Today).Date.Add(timePicker.Time ?? TimeSpan.Zero), DateTimeKind.Local);
         if (scheduledAt <= DateTime.Now)
         {
             await ShowInfoPopupAsync("Choose a future time", "The alarm time must be later than the current time.", isError: true,
@@ -821,12 +821,12 @@ public partial class MainPage : ContentPage
         task.IsReminderEnabled = true;
 #if ANDROID
         _wallpaperViewModel.StatusMessage = LocalizationService.IsPersian
-            ? LocalizationService.LocalizeDigits($"زنگ برای {scheduledAt:yyyy/MM/dd HH:mm} تنظیم شد.")
+            ? LocalizationService.LocalizeDigits($"Ø²Ù†Ú¯ Ø¨Ø±Ø§ÛŒ {scheduledAt:yyyy/MM/dd HH:mm} ØªÙ†Ø¸ÛŒÙ… Ø´Ø¯.")
             : (_viewModel.Reminders?.CanUseExactAlarms() == true)
                 ? $"Alarm set for {scheduledAt:dd MMM, HH:mm}."
                 : $"Alarm saved for {scheduledAt:dd MMM, HH:mm}; Android may deliver it a little late.";
 #else
-        _wallpaperViewModel.StatusMessage = LocalizationService.IsPersian ? LocalizationService.LocalizeDigits($"زنگ برای {scheduledAt:yyyy/MM/dd HH:mm} تنظیم شد.") : $"Alarm set for {scheduledAt:dd MMM, HH:mm}.";
+        _wallpaperViewModel.StatusMessage = LocalizationService.IsPersian ? LocalizationService.LocalizeDigits($"Ø²Ù†Ú¯ Ø¨Ø±Ø§ÛŒ {scheduledAt:yyyy/MM/dd HH:mm} ØªÙ†Ø¸ÛŒÙ… Ø´Ø¯.") : $"Alarm set for {scheduledAt:dd MMM, HH:mm}.";
 #endif
     }
     private Border CreateReminderPickerBorder(View picker) => new()
@@ -887,7 +887,7 @@ public partial class MainPage : ContentPage
         if (option is null) return;
 
         _viewModel.ChangeColor(task, option.Key, paletteKey);
-        _wallpaperViewModel.StatusMessage = LocalizationService.IsPersian ? $"{LocalizationService.Translate(option.Name)} · پالت {LocalizationService.Translate(TodoPalette.GetPaletteName(paletteKey))}" : $"{option.Name} · {TodoPalette.GetPaletteName(paletteKey)} palette.";
+        _wallpaperViewModel.StatusMessage = LocalizationService.IsPersian ? $"{LocalizationService.Translate(option.Name)} Â· Ù¾Ø§Ù„Øª {LocalizationService.Translate(TodoPalette.GetPaletteName(paletteKey))}" : $"{option.Name} Â· {TodoPalette.GetPaletteName(paletteKey)} palette.";
     }
     private Task<string?> ShowTaskPalettePopupAsync(TaskItemViewModel task, bool keepModalOpenOnSelection = false)
     {
@@ -1059,3 +1059,6 @@ public partial class MainPage : ContentPage
     // Native Android reordering gives the user a lifted card, a visible drop target,
     // haptic feedback on target changes, and a deterministic drop on release.
 }
+
+
+

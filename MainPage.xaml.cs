@@ -142,7 +142,7 @@ public partial class MainPage : ContentPage
     public void PrepareForStartupReveal() => PageContent.Opacity = 0;
 
     public Task RevealStartupContentAsync(uint duration = 320) =>
-        PageContent.FadeTo(1, duration, Easing.CubicOut);
+        PageContent.FadeToAsync(1, duration, Easing.CubicOut);
 
     public void ShowStartupContentImmediately()
     {

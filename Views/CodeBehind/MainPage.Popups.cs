@@ -58,10 +58,10 @@ public partial class MainPage : ContentPage
     {
         // Same duration and same fade/slide effect, with four operations instead of ten.
         return Task.WhenAll(
-            ModalHeaderContainer.FadeTo(opacity, duration, easing),
-            ModalHeaderContainer.TranslateTo(translationX, 0, duration, easing),
-            ModalMessage.FadeTo(opacity, duration, easing),
-            ModalMessage.TranslateTo(translationX, 0, duration, easing));
+            ModalHeaderContainer.FadeToAsync(opacity, duration, easing),
+            ModalHeaderContainer.TranslateToAsync(translationX, 0, duration, easing),
+            ModalMessage.FadeToAsync(opacity, duration, easing),
+            ModalMessage.TranslateToAsync(translationX, 0, duration, easing));
     }
     private const double StandardIconSize = 30d;
 
@@ -202,8 +202,8 @@ public partial class MainPage : ContentPage
             ModalOverlay.Opacity = 0;
             ModalCard.Scale = 0.94;
             ModalOverlay.IsVisible = true;
-            _ = ModalOverlay.FadeTo(1, 160, Easing.CubicOut);
-            _ = ModalCard.ScaleTo(1, 180, Easing.CubicOut);
+            _ = ModalOverlay.FadeToAsync(1, 160, Easing.CubicOut);
+            _ = ModalCard.ScaleToAsync(1, 180, Easing.CubicOut);
         }
         return completion;
     }
@@ -214,10 +214,10 @@ public partial class MainPage : ContentPage
         {
             await Task.Delay(20);
             await Task.WhenAll(
-                ModalBodyScroll.FadeTo(1, 145, Easing.CubicOut),
-                ModalButtons.FadeTo(1, 145, Easing.CubicOut),
-                ModalBodyScroll.TranslateTo(0, 0, 145, Easing.CubicOut),
-                ModalButtons.TranslateTo(0, 0, 145, Easing.CubicOut),
+                ModalBodyScroll.FadeToAsync(1, 145, Easing.CubicOut),
+                ModalButtons.FadeToAsync(1, 145, Easing.CubicOut),
+                ModalBodyScroll.TranslateToAsync(0, 0, 145, Easing.CubicOut),
+                ModalButtons.TranslateToAsync(0, 0, 145, Easing.CubicOut),
                 AnimatePopupHeaderAsync(1, 0, 145, Easing.CubicOut));
         }
         catch (OperationCanceledException)
@@ -566,10 +566,10 @@ public partial class MainPage : ContentPage
         {
             var exitX = LocalizationService.IsPersian ? -12d : 12d;
             await Task.WhenAll(
-                ModalBodyScroll.FadeTo(0, 85, Easing.CubicIn),
-                ModalButtons.FadeTo(0, 85, Easing.CubicIn),
-                ModalBodyScroll.TranslateTo(exitX, 0, 85, Easing.CubicIn),
-                ModalButtons.TranslateTo(exitX, 0, 85, Easing.CubicIn),
+                ModalBodyScroll.FadeToAsync(0, 85, Easing.CubicIn),
+                ModalButtons.FadeToAsync(0, 85, Easing.CubicIn),
+                ModalBodyScroll.TranslateToAsync(exitX, 0, 85, Easing.CubicIn),
+                ModalButtons.TranslateToAsync(exitX, 0, 85, Easing.CubicIn),
                 AnimatePopupHeaderAsync(0, exitX, 85, Easing.CubicIn));
         }
         catch (OperationCanceledException)
