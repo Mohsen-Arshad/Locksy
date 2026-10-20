@@ -75,6 +75,28 @@ public partial class MainPage : ContentPage
         _ => LocalizationService.IsPersian ? "FA" : "EN"
     };
 
+    private void ConfigureModalIconContainer(string key)
+    {
+        var destructiveHeaderIcon = key.Equals("trash", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("delete", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("remove", StringComparison.OrdinalIgnoreCase);
+
+        ModalIconContainer.WidthRequest = destructiveHeaderIcon ? 34 : 44;
+        ModalIconContainer.HeightRequest = destructiveHeaderIcon ? 34 : 44;
+        ModalIconContainer.BackgroundColor = destructiveHeaderIcon
+            ? PopupColor("#FCE9ED", "#3A222E")
+            : PopupColor("#F0F2F8", "#252736");
+        ModalIconContainer.Stroke = new SolidColorBrush(
+            destructiveHeaderIcon
+                ? PopupColor("#D1D9E5", "#383A4D")
+                : PopupColor("#D4DBE7", "#383A4D"));
+        ModalIconContainer.StrokeThickness = 1;
+        ModalIconContainer.StrokeShape = new RoundRectangle
+        {
+            CornerRadius = new CornerRadius(destructiveHeaderIcon ? 11 : 15)
+        };
+    }
+
     private void ConfigureModalIcon(string key)
     {
         if (IsLanguageBadgeIcon(key))
@@ -132,6 +154,7 @@ public partial class MainPage : ContentPage
         "chevron-down" => "icon_chevron_down.svg",
         "chevron-right" => "icon_chevron_right.svg",
         "slideshow" => "icon_slideshow.svg",
+        "slideshow-manage" => "icon_slideshow_manage.svg",
         "github" => "icon_github.svg",
         "task" => "icon_task.svg",
         _ => "icon_info.svg"
@@ -171,23 +194,7 @@ public partial class MainPage : ContentPage
         ModalTitle.FlowDirection = LocalizationService.CurrentFlowDirection;
         ModalSectionLabel.FlowDirection = LocalizationService.CurrentFlowDirection;
         ModalTitle.Text = LocalizedDisplayText(title);
-        var destructiveHeaderIcon = icon.Equals("trash", StringComparison.OrdinalIgnoreCase)
-            || icon.Equals("delete", StringComparison.OrdinalIgnoreCase)
-            || icon.Equals("remove", StringComparison.OrdinalIgnoreCase);
-        ModalIconContainer.WidthRequest = destructiveHeaderIcon ? 34 : 44;
-        ModalIconContainer.HeightRequest = destructiveHeaderIcon ? 34 : 44;
-        ModalIconContainer.BackgroundColor = destructiveHeaderIcon
-            ? PopupColor("#FCE9ED", "#3A222E")
-            : PopupColor("#F0F2F8", "#252736");
-        ModalIconContainer.Stroke = new SolidColorBrush(
-            destructiveHeaderIcon
-                ? PopupColor("#D1D9E5", "#383A4D")
-                : PopupColor("#D4DBE7", "#383A4D"));
-        ModalIconContainer.StrokeThickness = 1;
-        ModalIconContainer.StrokeShape = new RoundRectangle
-        {
-            CornerRadius = new CornerRadius(destructiveHeaderIcon ? 11 : 15)
-        };
+        ConfigureModalIconContainer(icon);
         ConfigureModalIcon(icon);
         SetModalMessageText(message);
         ModalMessage.TextColor = PopupColor("#6F7589", "#ADB2C8");

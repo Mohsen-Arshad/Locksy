@@ -259,7 +259,7 @@ public sealed class WallpaperViewModel : ObservableObject, IDisposable, IWallpap
             StatusMessage = IsAutoApplyPending
                 ? _localizationService.Translate(AutoApplyQueuedStatus)
                 : (_localizationService.IsPersian
-                    ? $"صفحهٔ قفل در ساعت {DateTime.Now:HH:mm} به‌روز شد."
+                    ? $"صفحه قفل در ساعت {DateTime.Now:HH:mm} به‌روز شد."
                     : $"Lock screen updated at {DateTime.Now:HH:mm}.");
 
             if (showAlert)
