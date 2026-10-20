@@ -79,4 +79,6 @@ To prepare a release build, use the `Release` configuration and sign the package
 
 ## License
 
-A `LICENSE` file is not currently included in this repository. Until a license is added, do not assume that reuse or redistribution of the source code is permitted.
+This project is licensed under the **GNU General Public License v2.0 (GPL-2.0)**.
+
+See the [LICENSE](LICENSE) file for the full text.
