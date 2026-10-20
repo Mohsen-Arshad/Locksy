@@ -45,8 +45,6 @@
     <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
   </filter>
 </defs>
-  <!-- Scale the existing full Locksy tile down while keeping the original artwork and center. -->
-  <g transform="translate(153.6 153.6) scale(0.7)">
 <!-- Transparent outside the app tile -->
 <g filter="url(#shadow)">
   <rect x="72" y="72" width="880" height="880" rx="220" fill="url(#body)" stroke="url(#edge)" stroke-width="9"/>
@@ -69,6 +67,4 @@
 <circle cx="730" cy="634" r="39" fill="#050712" opacity=".72" transform="translate(2 8)"/>
 <circle cx="730" cy="634" r="37" fill="url(#dot)" filter="url(#softshadow)"/>
 <ellipse cx="718" cy="620" rx="11" ry="7" fill="#fff" opacity=".62" transform="rotate(-40 718 620)"/>
-
-  </g>
 </svg>

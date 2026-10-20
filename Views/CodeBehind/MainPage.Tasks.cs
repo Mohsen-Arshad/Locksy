@@ -17,146 +17,9 @@ namespace Locksy;
 
 public partial class MainPage : ContentPage
 {
-    private const int TaskEditorCharacterThreshold = 48;
-    private const int TaskEditorWordThreshold = 7;
-    private bool _taskTextEditorOpen;
-    private bool _taskTextEditorOpening;
-    private bool _taskTextEditorClosing;
-    private bool _ignoreNextTaskEntryFocusExpansion;
-
     private void InvalidateNewReminderPopupVisualCache() => _newReminderPopupVisualCache = null;
-
-    private void NewTaskEntry_TextChanged(object? sender, TextChangedEventArgs e)
-    {
+    private void NewTaskEntry_TextChanged(object? sender, TextChangedEventArgs e) =>
         UpdateNewTaskEntryFlowDirection(e.NewTextValue);
-
-        if (!_taskTextEditorOpen && !_taskTextEditorOpening && ShouldOpenExpandedTaskEditor(e.NewTextValue))
-            OpenExpandedTaskEditor(e.NewTextValue ?? string.Empty);
-    }
-
-    private void NewTaskEntry_Focused(object? sender, FocusEventArgs e)
-    {
-        if (_ignoreNextTaskEntryFocusExpansion)
-        {
-            _ignoreNextTaskEntryFocusExpansion = false;
-            return;
-        }
-
-        var text = NewTaskEntry.Text;
-        if (!_taskTextEditorOpen && !_taskTextEditorOpening && ShouldOpenExpandedTaskEditor(text))
-            OpenExpandedTaskEditor(text ?? string.Empty);
-    }
-
-    private static bool ShouldOpenExpandedTaskEditor(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return false;
-
-        if (text.Length >= TaskEditorCharacterThreshold)
-            return true;
-
-        var words = 0;
-        var insideWord = false;
-        foreach (var character in text)
-        {
-            if (char.IsWhiteSpace(character))
-            {
-                insideWord = false;
-            }
-            else if (!insideWord)
-            {
-                insideWord = true;
-                words++;
-                if (words >= TaskEditorWordThreshold)
-                    return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void OpenExpandedTaskEditor(string text)
-    {
-        if (_taskTextEditorOpen || _taskTextEditorOpening || !IsVisible)
-            return;
-
-        _taskTextEditorOpening = true;
-        _taskTextEditorOpen = true;
-
-        // Synchronize before showing the overlay so the exact last typed character is kept.
-        _viewModel.NewTaskText = text;
-        TaskTextEditor.Text = text;
-        TaskTextEditor.FlowDirection = NewTaskEntry.FlowDirection;
-        TaskTextEditor.CursorPosition = text.Length;
-        TaskTextEditor.SelectionLength = 0;
-
-        TaskTextEditorOverlay.Opacity = 0;
-        TaskTextEditorCard.Scale = 0.985;
-        TaskTextEditorOverlay.IsVisible = true;
-        PageContent.InputTransparent = true;
-
-        // Focus the multiline editor as soon as the overlay is in the visual tree. The user
-        // keeps typing immediately; no second tap is required and the existing draft is shared.
-        Dispatcher.Dispatch(() =>
-        {
-            if (!TaskTextEditorOverlay.IsVisible)
-            {
-                _taskTextEditorOpen = false;
-                _taskTextEditorOpening = false;
-                return;
-            }
-
-            TaskTextEditor.Focus();
-            TaskTextEditor.CursorPosition = (TaskTextEditor.Text ?? string.Empty).Length;
-            TaskTextEditor.SelectionLength = 0;
-            _ = TaskTextEditorOverlay.FadeToAsync(1, 150, Easing.CubicOut);
-            _ = TaskTextEditorCard.ScaleToAsync(1, 170, Easing.CubicOut);
-            _taskTextEditorOpening = false;
-        });
-    }
-
-    private void TaskTextEditor_TextChanged(object? sender, TextChangedEventArgs e)
-    {
-        var direction = TaskTextDirectionHelper.Resolve(
-            e.NewTextValue, TaskTextDirection.Auto, LocalizationService.IsPersian);
-        TaskTextEditor.FlowDirection = direction == TaskTextDirection.RightToLeft
-            ? Microsoft.Maui.FlowDirection.RightToLeft
-            : Microsoft.Maui.FlowDirection.LeftToRight;
-    }
-
-    private async void TaskTextEditorDone_Clicked(object? sender, EventArgs e) =>
-        await CloseExpandedTaskEditorAsync();
-
-    private async Task CloseExpandedTaskEditorAsync()
-    {
-        if (!_taskTextEditorOpen || _taskTextEditorClosing)
-            return;
-
-        _taskTextEditorClosing = true;
-        // Prevent the underlying Entry from reopening the overlay if Android restores its
-        // focus while the editor is closing. The guard is cleared shortly afterwards so a
-        // deliberate tap on a long draft can open the expanded editor again immediately.
-        _ignoreNextTaskEntryFocusExpansion = true;
-        try
-        {
-            TaskTextEditor.Unfocus();
-            await Task.WhenAll(
-                TaskTextEditorOverlay.FadeToAsync(0, 130, Easing.CubicIn),
-                TaskTextEditorCard.ScaleToAsync(0.985, 130, Easing.CubicIn));
-        }
-        finally
-        {
-            TaskTextEditorOverlay.IsVisible = false;
-            TaskTextEditorOverlay.Opacity = 0;
-            TaskTextEditorCard.Scale = 1;
-            PageContent.InputTransparent = false;
-            _taskTextEditorOpen = false;
-            _taskTextEditorOpening = false;
-            _taskTextEditorClosing = false;
-            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(250),
-                () => _ignoreNextTaskEntryFocusExpansion = false);
-        }
-    }
 
     private void UpdateNewTaskEntryFlowDirection(string? text)
     {
@@ -289,12 +152,6 @@ public partial class MainPage : ContentPage
     }
     protected override bool OnBackButtonPressed()
     {
-        if (_taskTextEditorOpen)
-        {
-            _ = CloseExpandedTaskEditorAsync();
-            return true;
-        }
-
         // Back dismisses an in-app dialog before it can leave the page.
         if (_popupCompletionSource is not null)
         {

@@ -365,7 +365,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
         footer.TextSize = Math.Clamp(width * 0.025f, 18f, 29f);
         footer.TextAlign = AndroidPaint.Align.Center;
         var footerText = LocalizationService.IsPersian
-            ? "کارهایت، مستقیم روی صفحه قفل"
+            ? "کارهایت، مستقیم روی صفحهٔ قفل"
             : "LOCKSY  ·  FOCUS ON WHAT MATTERS";
         DrawLocalizedText(canvas, footerText, width / 2f, height * 0.965f, footer);
     }

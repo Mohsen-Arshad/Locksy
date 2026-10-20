@@ -169,15 +169,6 @@ public partial class MainPage : ContentPage
         UpdateNewTaskEntryFlowDirection(NewTaskEntry.Text);
         HeaderTaglineLabel.Text = LocalizedDisplayText("Keep what matters in sight.");
         NewTaskEntry.Placeholder = LocalizedDisplayText("Add a task...");
-        TaskTextEditorTitle.Text = LocalizedDisplayText("Task details");
-        TaskTextEditorDescription.Text = LocalizedDisplayText("Keep typing. The editor will expand automatically.");
-        TaskTextEditor.Placeholder = LocalizedDisplayText("Write your task here...");
-        TaskTextEditorDoneButton.Text = LocalizedDisplayText("Done");
-        TaskTextEditorOverlay.FlowDirection = FlowDirection;
-        TaskTextEditorCard.FlowDirection = FlowDirection;
-        TaskTextEditorTitle.FlowDirection = FlowDirection;
-        TaskTextEditorDescription.FlowDirection = FlowDirection;
-        TaskTextEditorDoneButton.FlowDirection = FlowDirection;
         AddTaskButton.Text = string.Empty;
         AddTaskButtonLabel.Text = LocalizedDisplayText("Add");
         SemanticProperties.SetDescription(AddTaskButton, LocalizedDisplayText("Add"));

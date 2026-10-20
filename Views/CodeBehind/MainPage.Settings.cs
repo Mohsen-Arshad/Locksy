@@ -349,7 +349,7 @@ public partial class MainPage : ContentPage
             "Personal background" => "photo-add",
             "Built-in backgrounds" => "wallpaper",
             "Slideshow settings" => "slideshow",
-            "Slideshow items" => "slideshow-manage",
+            "Slideshow items" => "slideshow",
             "Slideshow interval" => "slideshow",
             "About" => "about",
             _ => "settings"
@@ -367,16 +367,13 @@ public partial class MainPage : ContentPage
         ModalMessage.TextColor = PopupColor("#6F7589", "#ADB2C8");
         ModalMessage.IsVisible = !string.IsNullOrWhiteSpace(message);
 
-        // The settings header stays alive while the theme is toggled. Refresh the icon badge
-        // explicitly because these colors are assigned in code rather than AppThemeBinding.
-        ConfigureModalIconContainer(icon);
         ConfigureModalIcon(icon);
     }
     private void RenderSettingsHome()
     {
         AddThemeToggleRow();
 
-        AddSettingsOption("Language", "Choose a language for the app.", "language",
+        AddSettingsOption("Language", "Choose English or Persian for the app.", "language",
             () => NavigateSettingsPageAsync("Language"));
 
         var backgroundSubtitle = _viewModel.Settings?.BackgroundSummary
@@ -665,27 +662,16 @@ public partial class MainPage : ContentPage
                 return;
 
             case "Built-in backgrounds":
-            {
                 ModalBody.Children.Add(CreateSettingsSectionLabel("Built-in backgrounds"));
-                // Read the persisted slideshow collection once for this render. Each preset card
-                // uses it to show a stable add/remove state without repeatedly deserializing JSON.
-                var slideshowPresetKeys = settings.SlideshowItems
-                    .Where(item => string.Equals(item.Kind, "preset", StringComparison.OrdinalIgnoreCase))
-                    .Select(item => item.Key)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
                 foreach (var preset in settings.BackgroundPresets)
-                    AddWallpaperPresetCard(
-                        preset,
-                        isSelectedPreset && string.Equals(selectedPresetKey, preset.Key, StringComparison.OrdinalIgnoreCase),
-                        slideshowPresetKeys.Contains(preset.Key));
+                    AddWallpaperPresetCard(preset, isSelectedPreset &&
+                        string.Equals(selectedPresetKey, preset.Key, StringComparison.OrdinalIgnoreCase));
 
                 if (isSelectedPreset)
                     AddCurrentWallpaperBackgroundPreview(mode, selectedPresetKey, selectedPresetKey, null);
 
                 BuildSettingsFooter(isHome: false, backLabelOverride: "Back to background", backPageOverride: "Background image");
                 return;
-            }
 
             case "Slideshow settings":
                 AddSettingsOption("Choose multiple photos", "Add several photos from your device to the slideshow.", "multiple-photos",
@@ -709,7 +695,7 @@ public partial class MainPage : ContentPage
                     iconImageSize: 30, iconContainerSize: 48);
 
                 AddSlideshowIntervalPicker(settings, settings.SlideshowIntervalMinutes);
-                AddSettingsOption("Manage slideshow items", "Review and remove photos or built-in backgrounds.", "slideshow-manage",
+                AddSettingsOption("Manage slideshow items", "Review and remove photos or built-in backgrounds.", "multiple-photos",
                     () => NavigateSettingsPageAsync("Slideshow items"), iconImageSize: 30, iconContainerSize: 48);
                 BuildSettingsFooter(isHome: false, backLabelOverride: "Back to background", backPageOverride: "Background image");
                 return;
@@ -837,7 +823,7 @@ public partial class MainPage : ContentPage
         };
     }
 
-    private void AddWallpaperPresetCard(WallpaperBackgroundPreset preset, bool isSelected, bool isInSlideshow)
+    private void AddWallpaperPresetCard(WallpaperBackgroundPreset preset, bool isSelected)
     {
         var row = new Grid
         {
@@ -905,38 +891,19 @@ public partial class MainPage : ContentPage
 
         var addButton = new ImageButton
         {
-            Source = isInSlideshow ? "icon_check.svg" : "icon_plus.svg",
+            Source = "icon_plus.svg",
             Aspect = Aspect.AspectFit,
             Padding = 6,
             WidthRequest = 34,
             HeightRequest = 34,
-            BackgroundColor = isInSlideshow
-                ? PopupColor("#E9E2FF", "#332D49")
-                : PopupColor("#E2E7F1", "#303042"),
+            BackgroundColor = PopupColor("#E2E7F1", "#303042"),
             CornerRadius = 10,
             VerticalOptions = LayoutOptions.Center
         };
-        SemanticProperties.SetDescription(
-            addButton,
-            LocalizationService.Translate(isInSlideshow
-                ? "Remove preset from slideshow"
-                : "Add preset to slideshow"));
+        SemanticProperties.SetDescription(addButton, LocalizationService.Translate("Add preset to slideshow"));
         addButton.Clicked += async (_, _) =>
         {
-            var currentSettings = _viewModel.Settings;
-            if (currentSettings is not null)
-            {
-                var existingItem = currentSettings.SlideshowItems.FirstOrDefault(item =>
-                    string.Equals(item.Kind, "preset", StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(item.Key, preset.Key, StringComparison.OrdinalIgnoreCase));
-
-                if (existingItem is null)
-                    currentSettings.AddPresetToSlideshow(preset.Key);
-                else
-                    currentSettings.RemoveSlideshowItem(existingItem.Id);
-            }
-
-            // Re-render the cards immediately so the button toggles between + and check.
+            _viewModel.Settings?.AddPresetToSlideshow(preset.Key);
             InvalidateBackgroundSettingsVisualCache();
             await NavigateSettingsPageAsync("Built-in backgrounds", animate: false);
         };

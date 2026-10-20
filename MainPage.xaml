@@ -75,7 +75,6 @@
                        ReturnType="Done"
                        Completed="AddTaskEntry_Completed"
                        TextChanged="NewTaskEntry_TextChanged"
-                       Focused="NewTaskEntry_Focused"
                        Unfocused="NewTaskEntry_Unfocused"
                        ClearButtonVisibility="WhileEditing"
                        BackgroundColor="Transparent"
@@ -533,91 +532,5 @@
                 </Grid>
             </Border>
         </Grid>
-
-      <!-- Automatically opened multiline editor for long task drafts. It takes over the
-           MainPage while typing, keeping the keyboard focused on the same draft without
-           requiring another tap. -->
-      <Grid x:Name="TaskTextEditorOverlay"
-            ZIndex="200"
-            IsVisible="False"
-            Opacity="0"
-            BackgroundColor="Transparent"
-            HorizontalOptions="Fill"
-            VerticalOptions="Fill">
-          <BoxView Color="#B30A0913"
-                   HorizontalOptions="Fill"
-                   VerticalOptions="Fill" />
-          <Border x:Name="TaskTextEditorCard"
-                  MaximumWidthRequest="520"
-                  MaximumHeightRequest="540"
-                  Margin="18"
-                  Padding="18"
-                  BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightRaised}, Dark={StaticResource LocksyDarkRaised}}"
-                  Stroke="{AppThemeBinding Light=#CDD5E2, Dark=#383A4D}"
-                  StrokeThickness="1"
-                  StrokeShape="RoundRectangle 26"
-                  HorizontalOptions="Center"
-                  VerticalOptions="Center">
-              <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14">
-                  <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                      <VerticalStackLayout Grid.Column="0" Spacing="5" VerticalOptions="Center">
-                          <Label x:Name="TaskTextEditorTitle"
-                                 Text="Task details"
-                                 FontSize="21"
-                                 FontAttributes="Bold"
-                                 LineBreakMode="WordWrap"
-                                 TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}" />
-                          <Label x:Name="TaskTextEditorDescription"
-                                 Text="Keep typing. The editor will expand automatically."
-                                 FontSize="13"
-                                 LineBreakMode="WordWrap"
-                                 TextColor="{AppThemeBinding Light={StaticResource LocksyLightMuted}, Dark={StaticResource LocksyDarkMuted}}" />
-                      </VerticalStackLayout>
-                      <Image Grid.Column="1"
-                             Source="locksy_edit_icon.svg"
-                             WidthRequest="34"
-                             HeightRequest="34"
-                             Aspect="AspectFit"
-                             HorizontalOptions="Center"
-                             VerticalOptions="Center" />
-                  </Grid>
-
-                  <Border Grid.Row="1"
-                          Padding="12"
-                          MinimumHeightRequest="220"
-                          BackgroundColor="{AppThemeBinding Light={StaticResource LocksyLightInset}, Dark={StaticResource LocksyDarkInset}}"
-                          Stroke="{AppThemeBinding Light={StaticResource LocksyLightBorder}, Dark={StaticResource LocksyDarkBorderStrong}}"
-                          StrokeThickness="1"
-                          StrokeShape="RoundRectangle 18"
-                          VerticalOptions="Fill">
-                      <Editor x:Name="TaskTextEditor"
-                              Text="{Binding NewTaskText, Mode=TwoWay}"
-                              Placeholder="Write your task here..."
-                              TextChanged="TaskTextEditor_TextChanged"
-                              AutoSize="TextChanges"
-                              HeightRequest="240"
-                              MaximumHeightRequest="270"
-                              FontSize="17"
-                              BackgroundColor="Transparent"
-                              TextColor="{AppThemeBinding Light={StaticResource LocksyLightText}, Dark={StaticResource LocksyDarkText}}"
-                              PlaceholderColor="{AppThemeBinding Light=#8C8798, Dark=#9690A8}"
-                              HorizontalOptions="Fill"
-                              VerticalOptions="Fill" />
-                  </Border>
-
-                  <Button x:Name="TaskTextEditorDoneButton"
-                          Grid.Row="2"
-                          Text="Done"
-                          Clicked="TaskTextEditorDone_Clicked"
-                          BackgroundColor="#8875E8"
-                          TextColor="White"
-                          CornerRadius="16"
-                          HeightRequest="52"
-                          Padding="18,0"
-                          FontAttributes="Bold"
-                          HorizontalOptions="Fill" />
-              </Grid>
-          </Border>
-      </Grid>
     </Grid>
 </ContentPage>
