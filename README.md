@@ -79,6 +79,6 @@ To prepare a release build, use the `Release` configuration and sign the package
 
 ## License
 
-This project is licensed under the **GNU General Public License v2.0 (GPL-2.0)**.
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
 
 See the [LICENSE](LICENSE) file for the full text.
