@@ -18,6 +18,29 @@
 
 Locksy combines task management, reminders, and customizable lock-screen wallpapers in one Android app. Organize tasks in the app, choose how they appear on your wallpaper, and keep priorities visible without opening a separate planner.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/01-lockscreen-preview.jpg" alt="Locksy showing color-coded tasks on an Android lock screen" width="220" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/02-task-management.jpg" alt="Locksy main screen with task list, color markers, and wallpaper controls" width="220" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/03-wallpaper-placement.jpg" alt="Locksy wallpaper placement settings with layout profiles and position controls" width="220" />
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="33%"><strong>1. Lock Screen at a Glance</strong></td>
+    <td align="center" width="33%"><strong>2. Task Management</strong></td>
+    <td align="center" width="33%"><strong>3. Wallpaper Placement</strong></td>
+  </tr>
+  <tr>
+    <td>See color-coded tasks and daily priorities directly on your lock screen, arranged to stay easy to scan alongside the system clock.</td>
+    <td>Create, complete, reorder, and color-code tasks from the main screen, then apply the updated wallpaper when you are ready.</td>
+    <td>Choose a layout profile and adjust the content position and spacing around the clock to improve readability on your device.</td>
+  </tr>
+</table>
+
 ## Features
 
 - **Task management:** Create, edit, complete, delete, and reorder tasks. Use task colors to distinguish items and keep the list organized.
