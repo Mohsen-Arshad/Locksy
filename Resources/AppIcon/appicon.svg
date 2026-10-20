@@ -52,19 +52,22 @@
   <path d="M270 104 C180 120 120 185 104 275" fill="none" stroke="#aab5d4" stroke-opacity=".26" stroke-width="10" stroke-linecap="round"/>
   <path d="M748 925 C836 905 900 840 922 755" fill="none" stroke="#3b80ff" stroke-opacity=".28" stroke-width="12" stroke-linecap="round"/>
 </g>
-<!-- Recessed dark circular channel -->
-<circle cx="512" cy="512" r="292" fill="none" stroke="#050710" stroke-opacity=".65" stroke-width="82"/>
-<circle cx="512" cy="512" r="292" fill="none" stroke="#4a536b" stroke-opacity=".30" stroke-width="78"/>
-<!-- Progress ring, rounded open ends -->
-<path d="M 512 267 A 245 245 0 1 0 724 635" fill="none" stroke="#070a14" stroke-opacity=".55" stroke-width="83" stroke-linecap="round" transform="translate(0 5)"/>
-<path d="M 512 267 A 245 245 0 1 0 724 635" fill="none" stroke="url(#ring)" stroke-width="78" stroke-linecap="round" filter="url(#softshadow)"/>
-<path d="M 512 269 A 243 243 0 0 0 274 490" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="8" stroke-linecap="round"/>
-<!-- Raised check -->
-<path d="M 423 523 L 485 585 Q 503 603 522 584 L 690 415" fill="none" stroke="#060914" stroke-opacity=".7" stroke-width="76" stroke-linecap="round" stroke-linejoin="round" transform="translate(2 13)"/>
-<path d="M 423 523 L 485 585 Q 503 603 522 584 L 690 415" fill="none" stroke="url(#check)" stroke-width="67" stroke-linecap="round" stroke-linejoin="round" filter="url(#softshadow)"/>
-<path d="M 429 515 L 485 571 Q 503 589 522 570 L 681 411" fill="none" stroke="#ffffff" stroke-opacity=".48" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-<!-- End dot -->
-<circle cx="730" cy="634" r="39" fill="#050712" opacity=".72" transform="translate(2 8)"/>
-<circle cx="730" cy="634" r="37" fill="url(#dot)" filter="url(#softshadow)"/>
-<ellipse cx="718" cy="620" rx="11" ry="7" fill="#fff" opacity=".62" transform="rotate(-40 718 620)"/>
+<!-- The emblem is shifted down by 8 viewBox units for subtle optical centering. -->
+<g transform="translate(0 8)">
+  <!-- Recessed dark circular channel -->
+  <circle cx="512" cy="512" r="292" fill="none" stroke="#050710" stroke-opacity=".65" stroke-width="82"/>
+  <circle cx="512" cy="512" r="292" fill="none" stroke="#4a536b" stroke-opacity=".30" stroke-width="78"/>
+  <!-- Progress ring, rounded open ends -->
+  <path d="M 512 267 A 245 245 0 1 0 724 635" fill="none" stroke="#070a14" stroke-opacity=".55" stroke-width="83" stroke-linecap="round" transform="translate(0 5)"/>
+  <path d="M 512 267 A 245 245 0 1 0 724 635" fill="none" stroke="url(#ring)" stroke-width="78" stroke-linecap="round" filter="url(#softshadow)"/>
+  <path d="M 512 269 A 243 243 0 0 0 274 490" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="8" stroke-linecap="round"/>
+  <!-- Raised check -->
+  <path d="M 423 523 L 485 585 Q 503 603 522 584 L 690 415" fill="none" stroke="#060914" stroke-opacity=".7" stroke-width="76" stroke-linecap="round" stroke-linejoin="round" transform="translate(2 13)"/>
+  <path d="M 423 523 L 485 585 Q 503 603 522 584 L 690 415" fill="none" stroke="url(#check)" stroke-width="67" stroke-linecap="round" stroke-linejoin="round" filter="url(#softshadow)"/>
+  <path d="M 429 515 L 485 571 Q 503 589 522 570 L 681 411" fill="none" stroke="#ffffff" stroke-opacity=".48" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- End dot -->
+  <circle cx="730" cy="634" r="39" fill="#050712" opacity=".72" transform="translate(2 8)"/>
+  <circle cx="730" cy="634" r="37" fill="url(#dot)" filter="url(#softshadow)"/>
+  <ellipse cx="718" cy="620" rx="11" ry="7" fill="#fff" opacity=".62" transform="rotate(-40 718 620)"/>
+</g>
 </svg>

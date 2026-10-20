@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Diagnostics;
 using Locksy.Services;
+using Locksy.Models;
 using Locksy.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
@@ -81,7 +82,7 @@ public partial class MainPage : ContentPage
 
         var completion = BeginPopup(
             "New reminder settings",
-            "Set a title, then open color or alarm options only when you need them.",
+            LocalizationService.Translate("Set a title, then open color or alarm options only when you need them."),
             "options");
         _popupPreferredWidth = 370d;
         ApplyResponsivePopupBounds();
@@ -573,14 +574,16 @@ public partial class MainPage : ContentPage
         track.GestureRecognizers.Add(toggleTap);
         datePicker.DateSelected += (_, _) =>
         {
-            cache.DraftReminderAt = datePicker.Date.Date.Add(timePicker.Time);
+            cache.DraftReminderAt = (datePicker.Date ?? cache.DraftReminderAt.Date).Date
+                .Add(timePicker.Time ?? TimeSpan.Zero);
             cache.AlarmSummary.Text = GetReminderAlarmSummary(cache);
         };
         timePicker.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(TimePicker.Time))
             {
-                cache.DraftReminderAt = datePicker.Date.Date.Add(timePicker.Time);
+                cache.DraftReminderAt = (datePicker.Date ?? cache.DraftReminderAt.Date).Date
+                    .Add(timePicker.Time ?? TimeSpan.Zero);
                 cache.AlarmSummary.Text = GetReminderAlarmSummary(cache);
             }
         };
