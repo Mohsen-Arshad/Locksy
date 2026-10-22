@@ -22,6 +22,7 @@ public partial class MainPage : ContentPage
     }
     private async Task ShowWallpaperLayoutSettingsAsync()
     {
+        _dismissLayoutPopupFlowRequested = false;
         // Keep the in-progress selections outside the modal loop so Preview can return
         // to the same editor state without saving or losing the user's draft values.
         var candidateLayoutIndex = _wallpaperViewModel.SelectedLayoutIndex;
@@ -231,6 +232,11 @@ public partial class MainPage : ContentPage
             if (result == "PREVIEW_LAYOUT")
             {
                 await ShowWallpaperLayoutPreviewAsync(candidateLayoutIndex, candidateOffset, candidateClearance);
+                if (_dismissLayoutPopupFlowRequested)
+                {
+                    _dismissLayoutPopupFlowRequested = false;
+                    return;
+                }
                 continue;
             }
             if (result != "SAVE_LAYOUT_SETTINGS") return;

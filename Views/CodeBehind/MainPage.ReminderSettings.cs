@@ -57,6 +57,7 @@ public partial class MainPage : ContentPage
 
     private async void NewTaskSettingsButton_Clicked(object? sender, EventArgs e)
     {
+        DismissKeyboardForNavigation();
 #if DEBUG
         var popupBuildStarted = Stopwatch.GetTimestamp();
 #endif
@@ -82,7 +83,7 @@ public partial class MainPage : ContentPage
 
         var completion = BeginPopup(
             "New reminder settings",
-            LocalizationService.Translate("Set a title, then open color or alarm options only when you need them."),
+            "Set a title, then open color or alarm options only when you need them.",
             "options");
         _popupPreferredWidth = 370d;
         ApplyResponsivePopupBounds();
@@ -574,16 +575,14 @@ public partial class MainPage : ContentPage
         track.GestureRecognizers.Add(toggleTap);
         datePicker.DateSelected += (_, _) =>
         {
-            cache.DraftReminderAt = (datePicker.Date ?? cache.DraftReminderAt.Date).Date
-                .Add(timePicker.Time ?? TimeSpan.Zero);
+            cache.DraftReminderAt = (datePicker.Date ?? cache.DraftReminderAt.Date).Date.Add(timePicker.Time ?? cache.DraftReminderAt.TimeOfDay);
             cache.AlarmSummary.Text = GetReminderAlarmSummary(cache);
         };
         timePicker.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(TimePicker.Time))
             {
-                cache.DraftReminderAt = (datePicker.Date ?? cache.DraftReminderAt.Date).Date
-                    .Add(timePicker.Time ?? TimeSpan.Zero);
+                cache.DraftReminderAt = (datePicker.Date ?? cache.DraftReminderAt.Date).Date.Add(timePicker.Time ?? cache.DraftReminderAt.TimeOfDay);
                 cache.AlarmSummary.Text = GetReminderAlarmSummary(cache);
             }
         };

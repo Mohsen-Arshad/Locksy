@@ -166,6 +166,14 @@ public partial class MainPage : ContentPage
         string icon = "info",
         bool deferPresentationUntilReady = false)
     {
+        // If another flow takes ownership of the modal, don't let a late wallpaper callback
+        // overwrite the newly opened popup after the user leaves the progress dialog.
+        if (_wallpaperProgressPopupActive)
+        {
+            _wallpaperProgressPopupActive = false;
+            _wallpaperProgressPopupDismissed = true;
+        }
+
         // A nested action can finish its result while keeping the modal surface open.
         // The next popup then replaces the content and animates inside the same card.
         var reuseVisibleModal = ModalOverlay.IsVisible && _popupCompletionSource is null;
@@ -272,7 +280,8 @@ public partial class MainPage : ContentPage
         string cancelLabel = "Cancel",
         IReadOnlyList<string>? icons = null,
         string popupIcon = "task",
-        bool keepOpenOnSelection = false)
+        bool keepOpenOnSelection = false,
+        bool keepOpenOnCancel = false)
     {
         var completion = BeginPopup(title, message, popupIcon);
         for (var i = 0; i < choices.Count; i++)
@@ -281,7 +290,12 @@ public partial class MainPage : ContentPage
             var icon = icons is not null && i < icons.Count ? icons[i] : ChoiceIcon(choice, i);
             AddPopupChoice(choice, choice, icon, IsDestructive(choice), keepOpenOnSelection);
         }
-        ModalButtons.Children.Add(CreatePopupAction(cancelLabel, null, primary: false, destructive: false));
+        ModalButtons.Children.Add(CreatePopupAction(cancelLabel, null, primary: false, destructive: false,
+            customAction: () =>
+            {
+                if (keepOpenOnCancel) CompletePopupInPlace(null);
+                else CompletePopup(null);
+            }));
         return completion.Task;
     }
     private Task<string?> ShowPromptPopupAsync(
@@ -544,29 +558,17 @@ public partial class MainPage : ContentPage
 
     private void ModalBackdrop_Tapped(object? sender, TappedEventArgs e)
     {
-        // Backdrop taps follow the same parent-navigation rules as Android Back:
-        // connected settings/task subpages return to their parent menu; root pages close.
-        // Taps inside ModalCard are handled by its child controls instead.
-        if (_popupCompletionSource is not null)
-        {
-            if (_layoutPreviewActive)
-            {
-                CompletePopupInPlace("BACK_TO_LAYOUT");
-            }
-            else if (_settingsFlowActive && !string.Equals(_currentSettingsPage, "Settings", StringComparison.Ordinal))
-            {
-                MainThread.BeginInvokeOnMainThread(async () =>
-                    await NavigateSettingsPageAsync("Settings", animate: true, reverse: true));
-            }
-            else if (_taskPopupFlowActive && _taskPopupSubpageActive)
-            {
-                CompletePopupInPlace(null);
-            }
-            else
-            {
-                CompletePopup(null);
-            }
-        }
+        // A tap outside the modal dismisses the whole popup flow, not just its current
+        // submenu. Mark looping popup flows so they cannot reopen themselves afterward.
+        if (_popupCompletionSource is null)
+            return;
+
+        if (_taskPopupFlowActive)
+            _dismissTaskPopupFlowRequested = true;
+        if (_layoutPreviewActive)
+            _dismissLayoutPopupFlowRequested = true;
+
+        CompletePopup(null);
     }
     private void CompletePopupInPlace(string? result)
     {
@@ -603,6 +605,12 @@ public partial class MainPage : ContentPage
     }
     private void CompletePopup(string? result)
     {
+        if (_wallpaperProgressPopupActive)
+        {
+            _wallpaperProgressPopupActive = false;
+            _wallpaperProgressPopupDismissed = true;
+        }
+
         ModalOverlay.IsVisible = false;
         ModalOverlay.Opacity = 0;
         ModalCard.InputTransparent = false;

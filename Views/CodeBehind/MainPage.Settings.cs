@@ -158,6 +158,7 @@ public partial class MainPage : ContentPage
 
     private async void SettingsButton_Clicked(object? sender, EventArgs e)
     {
+        DismissKeyboardForNavigation();
         _settingsFlowActive = true;
         _currentSettingsPage = "Settings";
         var completion = BeginPopup(
@@ -376,7 +377,7 @@ public partial class MainPage : ContentPage
     {
         AddThemeToggleRow();
 
-        AddSettingsOption("Language", "Choose a language for the app.", "language",
+        AddSettingsOption("Language", "Choose English or Persian for the app.", "language",
             () => NavigateSettingsPageAsync("Language"));
 
         var backgroundSubtitle = _viewModel.Settings?.BackgroundSummary

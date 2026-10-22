@@ -280,6 +280,36 @@ public partial class MainPage : ContentPage
             keepModalOpenOnDismiss: keepModalOpenOnDismiss);
         return false;
     }
+    private void DismissKeyboardForNavigation()
+    {
+#if ANDROID
+        // Capture the native focus/token before MAUI Unfocus clears it. Unfocus alone can leave
+        // the keyboard visible on some OEM keyboards when a popup is opened from the top bar.
+        try
+        {
+            var activity = Platform.CurrentActivity;
+            var focusedView = activity?.CurrentFocus;
+            if (activity is not null && focusedView?.WindowToken is { } windowToken)
+            {
+                var inputMethod = activity.GetSystemService(global::Android.Content.Context.InputMethodService)
+                    as global::Android.Views.InputMethods.InputMethodManager;
+                inputMethod?.HideSoftInputFromWindow(
+                    windowToken,
+                    global::Android.Views.InputMethods.HideSoftInputFlags.None);
+                focusedView.ClearFocus();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Locksy] Could not dismiss keyboard before navigation: {ex.Message}");
+        }
+#endif
+        // Keep the text and draft intact; only release focus.
+        NewTaskEntry?.Unfocus();
+        if (_taskTextEditorOpen)
+            TaskTextEditor?.Unfocus();
+    }
+
     private void NewTaskEntry_Unfocused(object? sender, FocusEventArgs e)
     {
         // Keep queued work queued. Do not call WallpaperManager while the editor is in
@@ -383,6 +413,7 @@ public partial class MainPage : ContentPage
     }
     private async Task ShowTaskOptionsAsync(TaskItemViewModel task)
     {
+        _dismissTaskPopupFlowRequested = false;
         _taskPopupFlowActive = true;
         try
         {
@@ -438,6 +469,10 @@ public partial class MainPage : ContentPage
                         }
                         break;
                 }
+
+                if (_dismissTaskPopupFlowRequested)
+                    return;
+
                 _taskPopupSubpageActive = false;
             }
         }
@@ -445,6 +480,7 @@ public partial class MainPage : ContentPage
         {
             _taskPopupFlowActive = false;
             _taskPopupSubpageActive = false;
+            _dismissTaskPopupFlowRequested = false;
             // If an unexpected child action exits while no popup task owns the still-open
             // surface, close it rather than leave a blocked overlay behind.
             if (ModalOverlay.IsVisible && _popupCompletionSource is null)
@@ -644,7 +680,8 @@ public partial class MainPage : ContentPage
             cancelLabel: "Back to task options",
             icons: new[] { "direction-auto", "direction-ltr", "direction-rtl" },
             popupIcon: "direction",
-            keepOpenOnSelection: keepModalOpenOnSelection);
+            keepOpenOnSelection: keepModalOpenOnSelection,
+            keepOpenOnCancel: keepModalOpenOnSelection);
 
         if (choice is null) return;
         task.TextDirection = choice switch

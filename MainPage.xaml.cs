@@ -34,6 +34,10 @@ public partial class MainPage : ContentPage
     private string _currentSettingsPage = "Settings";
     private bool _taskPopupFlowActive;
     private bool _taskPopupSubpageActive;
+    private bool _dismissTaskPopupFlowRequested;
+    private bool _dismissLayoutPopupFlowRequested;
+    private bool _wallpaperProgressPopupActive;
+    private bool _wallpaperProgressPopupDismissed;
     private bool _layoutPreviewActive;
     private double _popupPreferredWidth = 380d;
 #if ANDROID
@@ -204,8 +208,139 @@ public partial class MainPage : ContentPage
 
     private async void OnWallpaperNotificationRequested(object? sender, WallpaperNotificationEventArgs e)
     {
-        await MainThread.InvokeOnMainThreadAsync(() => ShowInfoPopupAsync(
-            e.Title, e.Message, isError: e.IsError, previewBytes: e.PreviewBytes));
+        await MainThread.InvokeOnMainThreadAsync(() => PresentWallpaperNotification(e));
+    }
+
+    private void PresentWallpaperNotification(WallpaperNotificationEventArgs e)
+    {
+        if (e.IsProgress)
+        {
+            if (_wallpaperProgressPopupDismissed)
+                return;
+
+            if (!_wallpaperProgressPopupActive || _popupCompletionSource is null || !ModalOverlay.IsVisible)
+                ShowWallpaperProgressPopup();
+
+            if (e.PreviewBytes is { Length: > 0 } previewBytes)
+                UpdateWallpaperProgressPreview(previewBytes, e.Message);
+            else
+                SetModalMessageText(e.Message);
+            return;
+        }
+
+        if (_wallpaperProgressPopupActive && _popupCompletionSource is not null && ModalOverlay.IsVisible)
+        {
+            UpdateWallpaperProgressResult(e);
+            return;
+        }
+
+        // Dismissing the in-progress popup is intentional. Do not resurrect a second result
+        // popup after the user has already closed the flow; the status label still reports it.
+        if (_wallpaperProgressPopupDismissed)
+        {
+            _wallpaperProgressPopupDismissed = false;
+            return;
+        }
+
+        _ = ShowInfoPopupAsync(e.Title, e.Message, isError: e.IsError, previewBytes: e.PreviewBytes);
+    }
+
+    private void ShowWallpaperProgressPopup()
+    {
+        _wallpaperProgressPopupDismissed = false;
+        BeginPopup(
+            "Applying wallpaper",
+            "Preparing the wallpaper preview…",
+            "wallpaper");
+        // BeginPopup also retires a previous progress popup if one owns the modal. Mark this
+        // newly created instance active only after BeginPopup has finished that cleanup.
+        _wallpaperProgressPopupActive = true;
+
+        ModalBody.Children.Add(CreateWallpaperProgressIndicator("Preparing the wallpaper preview…"));
+        ModalButtons.Children.Add(CreatePopupAction(
+            "Close", null, primary: false, destructive: false,
+            customAction: () => CompletePopup(null)));
+    }
+
+    private View CreateWallpaperProgressIndicator(string text)
+    {
+        var row = new HorizontalStackLayout
+        {
+            Spacing = 10,
+            Padding = new Thickness(5, 10),
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+            Children =
+            {
+                new ActivityIndicator
+                {
+                    IsRunning = true,
+                    Color = Color.FromArgb("#8875E8"),
+                    WidthRequest = 24,
+                    HeightRequest = 24,
+                    VerticalOptions = LayoutOptions.Center
+                },
+                new Label
+                {
+                    Text = LocalizedDisplayText(text),
+                    FontSize = 12,
+                    TextColor = PopupColor("#5F667D", "#C7CBE0"),
+                    VerticalTextAlignment = TextAlignment.Center,
+                    LineBreakMode = LineBreakMode.WordWrap
+                }
+            }
+        };
+        return row;
+    }
+
+    private View CreateWallpaperPreviewCard(byte[] previewBytes) => new Border
+    {
+        Padding = new Thickness(5),
+        HeightRequest = 230,
+        BackgroundColor = PopupColor("#E1E6F0", "#1A1B26"),
+        Stroke = new SolidColorBrush(PopupColor("#D1D9E5", "#383A4D")),
+        StrokeThickness = 1,
+        StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(16) },
+        Shadow = CreateNeumorphicShadow(0.28f),
+        Content = new Image
+        {
+            Source = ImageSource.FromStream(() => new MemoryStream(previewBytes)),
+            Aspect = Aspect.AspectFit,
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
+            BackgroundColor = PopupColor("#E1E6F0", "#1A1B26")
+        }
+    };
+
+    private void UpdateWallpaperProgressPreview(byte[] previewBytes, string message)
+    {
+        if (!_wallpaperProgressPopupActive || _popupCompletionSource is null || !ModalOverlay.IsVisible)
+            return;
+
+        SetModalMessageText(message);
+        ModalBody.Children.Clear();
+        ModalBody.Children.Add(CreateWallpaperPreviewCard(previewBytes));
+        ModalBody.Children.Add(CreateWallpaperProgressIndicator("Applying wallpaper…"));
+    }
+
+    private void UpdateWallpaperProgressResult(WallpaperNotificationEventArgs e)
+    {
+        _wallpaperProgressPopupActive = false;
+        _wallpaperProgressPopupDismissed = false;
+        ModalTitle.Text = LocalizedDisplayText(e.Title);
+        ConfigureModalIconContainer(e.IsError ? "alert" : "check");
+        ConfigureModalIcon(e.IsError ? "alert" : "check");
+        SetModalMessageText(e.Message);
+        ModalMessage.TextColor = e.IsError
+            ? Color.FromArgb("#D45C72")
+            : PopupColor("#6F7589", "#ADB2C8");
+        ModalBody.Children.Clear();
+        if (e.PreviewBytes is { Length: > 0 } previewBytes)
+            ModalBody.Children.Add(CreateWallpaperPreviewCard(previewBytes));
+        ModalButtons.Children.Clear();
+        ModalButtons.Children.Add(CreatePopupAction(
+            "Got it", "OK", primary: true, destructive: false,
+            customAction: () => CompletePopup("OK")));
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)

@@ -25,7 +25,27 @@ public sealed class AndroidWallpaperService : IWallpaperService
         IReadOnlyList<TodoItem> todos,
         bool darkMode,
         WallpaperLayoutSettings settings,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<byte[]>? previewReady = null)
+    {
+        ArgumentNullException.ThrowIfNull(todos);
+        ArgumentNullException.ThrowIfNull(settings);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // This service previously did all drawing and WallpaperManager IPC synchronously before
+        // returning its Task. That blocked the UI thread, hid the busy state and let queued taps
+        // invoke Apply more than once. Keep all bitmap and platform work on a worker thread.
+        return Task.Run(
+            () => ApplyLockScreenCore(todos, darkMode, settings, cancellationToken, previewReady),
+            cancellationToken);
+    }
+
+    private static byte[] ApplyLockScreenCore(
+        IReadOnlyList<TodoItem> todos,
+        bool darkMode,
+        WallpaperLayoutSettings settings,
+        CancellationToken cancellationToken,
+        Action<byte[]>? previewReady)
     {
         cancellationToken.ThrowIfCancellationRequested();
         // Empty is intentional: DrawTodos skips task cards, but DrawBackground still
@@ -49,10 +69,26 @@ public sealed class AndroidWallpaperService : IWallpaperService
         DrawTodos(canvas, bitmapWidth, bitmapHeight, todos.Take(MaxRows).ToList(), darkMode, settings);
 
         cancellationToken.ThrowIfCancellationRequested();
+        // A high-quality JPEG is much faster and smaller than the previous PNG used for
+        // both the preview and the SetStream fallback. The wallpaper itself still receives
+        // the original full-quality in-memory Bitmap through SetBitmap below.
         using var stream = new MemoryStream();
-        bitmap.Compress(Bitmap.CompressFormat.Png!, 100, stream);
+        if (!bitmap.Compress(Bitmap.CompressFormat.Jpeg!, 92, stream))
+            throw new InvalidOperationException("The wallpaper preview image could not be encoded.");
         var previewBytes = stream.ToArray();
 
+        // Surface the generated preview before the potentially slow WallpaperManager Binder call.
+        // The UI labels it as in-progress until Android confirms that the lock-screen update succeeded.
+        try
+        {
+            previewReady?.Invoke(previewBytes);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Locksy] Wallpaper preview callback failed: {ex.Message}");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
         var wallpaperManager = WallpaperManager.GetInstance(context)
             ?? throw new InvalidOperationException("Android WallpaperManager is not available.");
         if (Build.VERSION.SdkInt < BuildVersionCodes.N)
@@ -68,7 +104,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
         }
         catch (Exception)
         {
-            // Try the PNG stream path below on vendor builds that reject SetBitmap.
+            // Try the encoded-image stream path below on vendor builds that reject SetBitmap.
         }
 
         if (wallpaperId == 0)
@@ -87,9 +123,9 @@ public sealed class AndroidWallpaperService : IWallpaperService
         // Its receiver re-renders the next slide and schedules the following interval.
         WallpaperSlideshowAlarm.SyncAfterWallpaperApplied();
 
-        // The same PNG bytes are returned to the UI for the success-dialog preview,
-        // ensuring the preview matches the exact bitmap sent to WallpaperManager.
-        return Task.FromResult(previewBytes);
+        // The same encoded preview bytes are returned to the UI for the success dialog.
+        // SetBitmap receives the original high-quality bitmap; these bytes are only preview/fallback data.
+        return previewBytes;
     }
 
     private static bool TryDrawCustomBackground(Canvas canvas, int width, int height, bool dark, string imagePath)
@@ -365,7 +401,7 @@ public sealed class AndroidWallpaperService : IWallpaperService
         footer.TextSize = Math.Clamp(width * 0.025f, 18f, 29f);
         footer.TextAlign = AndroidPaint.Align.Center;
         var footerText = LocalizationService.IsPersian
-            ? "کارهایت، مستقیم روی صفحه قفل"
+            ? "کارهایت، مستقیم روی صفحهٔ قفل"
             : "LOCKSY  ·  FOCUS ON WHAT MATTERS";
         DrawLocalizedText(canvas, footerText, width / 2f, height * 0.965f, footer);
     }
