@@ -194,12 +194,38 @@ public static class CustomWallpaperBackgroundService
     {
         ArgumentNullException.ThrowIfNull(image);
         Directory.CreateDirectory(FileSystem.AppDataDirectory);
-        var destination = StoredImagePath;
-        var temporary = destination + ".tmp";
-        await CopyImageAsync(image, temporary, cancellationToken);
-        File.Move(temporary, destination, overwrite: true);
-        MauiPreferences.Default.Set(LegacyImagePathPreferenceKey, destination);
-        MauiPreferences.Default.Set(ModePreferenceKey, WallpaperBackgroundMode.CustomImage.ToString());
+
+        var previousPath = MauiPreferences.Default.Get(LegacyImagePathPreferenceKey, string.Empty);
+        // Never overwrite the same path. Android/MAUI image loaders can cache by filename,
+        // leaving the settings preview stuck on the first image after later selections.
+        var destination = Path.Combine(
+            FileSystem.AppDataDirectory,
+            $"locksy-custom-background-{Guid.NewGuid():N}.img");
+
+        try
+        {
+            await CopyImageAsync(image, destination, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Switch the active path only after the complete image has been copied.
+            MauiPreferences.Default.Set(LegacyImagePathPreferenceKey, destination);
+            MauiPreferences.Default.Set(ModePreferenceKey, WallpaperBackgroundMode.CustomImage.ToString());
+
+            if (!string.IsNullOrWhiteSpace(previousPath) &&
+                IsManagedCustomBackgroundPath(previousPath))
+            {
+                TryDelete(previousPath);
+            }
+
+            // Clean up a legacy fixed-name image after migration to a unique path.
+            TryDelete(StoredImagePath);
+        }
+        catch
+        {
+            TryDelete(destination);
+            TryDelete(destination + ".tmp");
+            throw;
+        }
     }
 
     public static async Task<IReadOnlyList<WallpaperSlideshowItem>> AddSlideshowImagesAsync(
@@ -278,7 +304,11 @@ public static class CustomWallpaperBackgroundService
     {
         var existing = MauiPreferences.Default.Get(LegacyImagePathPreferenceKey, string.Empty);
         MauiPreferences.Default.Remove(LegacyImagePathPreferenceKey);
-        if (!string.IsNullOrWhiteSpace(existing)) TryDelete(existing);
+        // Clearing the image must also clear the saved mode; otherwise GetMode() would keep
+        // returning CustomImage and the UI could continue to display the removed photo state.
+        MauiPreferences.Default.Set(ModePreferenceKey, WallpaperBackgroundMode.Default.ToString());
+        if (!string.IsNullOrWhiteSpace(existing) && IsManagedCustomBackgroundPath(existing))
+            TryDelete(existing);
         TryDelete(StoredImagePath);
         TryDelete(StoredImagePath + ".tmp");
     }
@@ -332,6 +362,18 @@ public static class CustomWallpaperBackgroundService
             TryDelete(temporary);
             throw;
         }
+    }
+
+    private static bool IsManagedCustomBackgroundPath(string path)
+    {
+        try
+        {
+            var root = Path.GetFullPath(FileSystem.AppDataDirectory) + Path.DirectorySeparatorChar;
+            var candidate = Path.GetFullPath(path);
+            return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase)
+                && Path.GetFileName(candidate).StartsWith("locksy-custom-background", StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
     }
 
     private static bool IsUnderSlideshowDirectory(string path)

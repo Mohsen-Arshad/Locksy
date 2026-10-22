@@ -9,5 +9,6 @@ public interface IWallpaperService
         IReadOnlyList<TodoItem> todos,
         bool darkMode,
         WallpaperLayoutSettings settings,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Action<byte[]>? previewReady = null);
 }

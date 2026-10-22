@@ -13,13 +13,20 @@ public sealed class WallpaperNotificationEventArgs : EventArgs
     public string Message { get; }
     public bool IsError { get; }
     public byte[]? PreviewBytes { get; }
+    public bool IsProgress { get; }
 
-    public WallpaperNotificationEventArgs(string title, string message, bool isError = false, byte[]? previewBytes = null)
+    public WallpaperNotificationEventArgs(
+        string title,
+        string message,
+        bool isError = false,
+        byte[]? previewBytes = null,
+        bool isProgress = false)
     {
         Title = title;
         Message = message;
         IsError = isError;
         PreviewBytes = previewBytes;
+        IsProgress = isProgress;
     }
 }
 
@@ -29,6 +36,13 @@ public sealed class WallpaperNotificationEventArgs : EventArgs
 /// </summary>
 public sealed class WallpaperViewModel : ObservableObject, IDisposable, IWallpaperUpdateController
 {
+    private enum WallpaperApplyResult
+    {
+        SkippedBecauseBusy,
+        Succeeded,
+        Failed
+    }
+
     private const int MaxWallpaperTasks = 8;
     private const string AutoApplyPreferenceKey = "locksy-auto-apply";
     private const string LayoutPreferenceKey = "locksy-wallpaper-layout-v2";
@@ -59,6 +73,7 @@ public sealed class WallpaperViewModel : ObservableObject, IDisposable, IWallpap
     private string _statusMessage = string.Empty;
     private string _layoutSummary = string.Empty;
     private bool _disposed;
+    private int _applyOperationActive;
 
     public bool IsAutoApplyEnabled
     {
@@ -157,7 +172,7 @@ public sealed class WallpaperViewModel : ObservableObject, IDisposable, IWallpap
         RefreshLayoutSummary();
 
         ApplyWallpaperCommand = new AsyncCommand(
-            cancellationToken => ApplyWallpaperAsync(showAlert: true, cancellationToken),
+            async cancellationToken => { await ApplyWallpaperAsync(showAlert: true, cancellationToken); },
             () => !IsApplying);
         _taskSource.TasksChanged += OnTasksChanged;
     }
@@ -230,8 +245,8 @@ public sealed class WallpaperViewModel : ObservableObject, IDisposable, IWallpap
     {
         if (!IsAutoApplyPending || !IsAutoApplyEnabled || IsApplying) return;
         IsAutoApplyPending = false;
-        var succeeded = await ApplyWallpaperAsync(showAlert: false, cancellationToken: cancellationToken);
-        if (!succeeded && IsAutoApplyEnabled)
+        var result = await ApplyWallpaperAsync(showAlert: false, cancellationToken: cancellationToken);
+        if (result == WallpaperApplyResult.Failed && IsAutoApplyEnabled)
         {
             IsAutoApplyPending = true;
             StatusMessage = _localizationService.Translate(AutoApplyQueuedStatus);
@@ -240,59 +255,95 @@ public sealed class WallpaperViewModel : ObservableObject, IDisposable, IWallpap
 
     private void OnTasksChanged(object? sender, EventArgs e) => QueueAutoApply();
 
-    private async Task<bool> ApplyWallpaperAsync(bool showAlert, CancellationToken cancellationToken)
+    private async Task<WallpaperApplyResult> ApplyWallpaperAsync(bool showAlert, CancellationToken cancellationToken)
     {
-        if (IsApplying) return false;
+        // Use an atomic gate because the manual command and Activity background lifecycle can
+        // arrive through different call paths. IsApplying also updates the UI, but is not a lock.
+        if (System.Threading.Interlocked.CompareExchange(ref _applyOperationActive, 1, 0) != 0)
+            return WallpaperApplyResult.SkippedBecauseBusy;
 
-        var tasks = _taskSource.GetTaskModels().Take(MaxWallpaperTasks).ToList();
-        IsApplying = true;
-        StatusMessage = _localizationService.Translate("Preparing lock-screen wallpaper…");
-        var succeeded = false;
+        byte[]? generatedPreviewBytes = null;
         try
         {
+            IsApplying = true;
+            if (showAlert)
+            {
+                // A manual Apply incorporates all current settings and supersedes stale auto work.
+                IsAutoApplyPending = false;
+            }
+            StatusMessage = _localizationService.Translate("Preparing lock-screen wallpaper…");
             cancellationToken.ThrowIfCancellationRequested();
+            if (showAlert)
+            {
+                NotificationRequested?.Invoke(this, new WallpaperNotificationEventArgs(
+                    "Applying wallpaper",
+                    "Preparing the wallpaper preview…",
+                    isProgress: true));
+            }
+
+            var tasks = _taskSource.GetTaskModels().Take(MaxWallpaperTasks).ToList();
             _preferences.Set(LastWallpaperOperationPreferenceKey, DateTime.UtcNow.Ticks);
             var previewBytes = await _wallpaperService.ApplyLockScreenAsync(
-                tasks, _themeSettingsService.IsDarkMode(), CreateLayoutSettings(), cancellationToken);
+                tasks,
+                _themeSettingsService.IsDarkMode(),
+                CreateLayoutSettings(),
+                cancellationToken,
+                previewReady: showAlert
+                    ? bytes =>
+                    {
+                        generatedPreviewBytes = bytes;
+                        NotificationRequested?.Invoke(this, new WallpaperNotificationEventArgs(
+                            "Applying wallpaper",
+                            "The preview is ready. Locksy is applying it to your lock screen…",
+                            previewBytes: bytes,
+                            isProgress: true));
+                    }
+                    : null);
 
-            succeeded = true;
             StatusMessage = IsAutoApplyPending
                 ? _localizationService.Translate(AutoApplyQueuedStatus)
                 : (_localizationService.IsPersian
-                    ? $"صفحه قفل در ساعت {DateTime.Now:HH:mm} به‌روز شد."
+                    ? $"صفحهٔ قفل در ساعت {DateTime.Now:HH:mm} به‌روز شد."
                     : $"Lock screen updated at {DateTime.Now:HH:mm}.");
 
             if (showAlert)
                 NotificationRequested?.Invoke(this, new WallpaperNotificationEventArgs(
                     "Wallpaper updated",
-                    "Your lock-screen wallpaper is ready. Here is the exact image applied to your lock screen.",
+                    "Your lock-screen wallpaper is ready. Here is a preview of the wallpaper applied to your lock screen.",
                     previewBytes: previewBytes));
-            return true;
+            return WallpaperApplyResult.Succeeded;
         }
         catch (OperationCanceledException)
         {
             StatusMessage = _localizationService.Translate("Wallpaper update cancelled.");
-            return false;
+            if (showAlert)
+                NotificationRequested?.Invoke(this, new WallpaperNotificationEventArgs(
+                    "Wallpaper update cancelled",
+                    "The wallpaper update was cancelled before Android confirmed the change.",
+                    isError: true,
+                    previewBytes: generatedPreviewBytes));
+            return WallpaperApplyResult.Failed;
         }
         catch (Exception ex)
         {
             StatusMessage = _localizationService.Translate("Could not update wallpaper.");
             if (showAlert)
                 NotificationRequested?.Invoke(this, new WallpaperNotificationEventArgs(
-                    "Couldn’t update wallpaper", ex.Message, isError: true));
-            return false;
+                    "Couldn’t update wallpaper",
+                    ex.Message,
+                    isError: true,
+                    previewBytes: generatedPreviewBytes));
+            return WallpaperApplyResult.Failed;
         }
         finally
         {
-            IsApplying = false;
             if (IsAutoApplyPending)
                 StatusMessage = _localizationService.Translate(AutoApplyQueuedStatus);
-            else if (!succeeded && !showAlert && IsAutoApplyEnabled)
-            {
-                // Preserve retry semantics after a failed background apply.
-                IsAutoApplyPending = true;
-                StatusMessage = _localizationService.Translate(AutoApplyQueuedStatus);
-            }
+
+            // Release the operation gate before re-enabling the command. Until then the Apply
+            // button remains disabled and no background apply can race into the same service.
+            System.Threading.Interlocked.Exchange(ref _applyOperationActive, 0);
+            IsApplying = false;
         }
     }
 
